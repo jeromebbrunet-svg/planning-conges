@@ -3460,6 +3460,17 @@
 
       // ── Init multi-user ──
       initUsersFromStorage(); // async — appelle finishInit() → loadCurrentUser() en interne
+      // Expose functions to global scope (required because script is type="module")
+      Object.assign(window, {
+        toggleTheme, toggleUserDropdown, closeUserDropdown, filterUsers, addUser,
+        selectZone, changeYear, saveData, closeSaveModal, doSaveCurrent, doSaveAll,
+        closeImportModal, importFromFile, exportPDF, toggleSwapMode,
+        applyBg, clearBg, updateBgOpacity, updateMonthOpacity,
+        startRename, openGanttModal, closeGanttModal, printGantt, confirmZonePicker,
+        toggleSidebar, selectTool, toggleMobileMode, mobileNavMonth,
+        openMobileDrawer, closeMobileDrawer, toggleMobUserDropdown, filterMobUsers, addMobUser,
+        handleDayClick, cycleStatus, updateConfig, syncZoneLabel, buildGantt,
+      });
     </script>
     <!-- ══ MODALE SAUVEGARDE ══ -->
     <div id="save-modal" role="dialog" aria-modal="true" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;align-items:center;justify-content:center;">
