@@ -1723,7 +1723,7 @@
 
       async function fbSaveAllUsers() {
         try {
-          await set(ref(db, FB_ROOT), { users, currentUserId });
+          await set(ref(db, FB_ROOT), { users });   // currentUserId retiré — local only
           setLocalBackup();
         } catch(e) {
           console.warn('Firebase write failed, using localStorage fallback', e);
@@ -1731,8 +1731,28 @@
         }
       }
 
+      // ── Préférences locales (utilisateur sélectionné, année, comparaison) ──
+      const LOCAL_PREFS_KEY = 'congesPlanning_prefs_v1';
+
+      function saveLocalPrefs() {
+        try {
+          localStorage.setItem(LOCAL_PREFS_KEY, JSON.stringify({
+            currentUserId,
+            currentYear,
+            compareUserId,
+          }));
+        } catch(e) {}
+      }
+
+      function loadLocalPrefs() {
+        try {
+          const raw = localStorage.getItem(LOCAL_PREFS_KEY);
+          return raw ? JSON.parse(raw) : null;
+        } catch(e) { return null; }
+      }
+
       function setLocalBackup() {
-        try { localStorage.setItem(USERS_KEY, JSON.stringify({ users, currentUserId })); } catch(e){}
+        try { localStorage.setItem(USERS_KEY, JSON.stringify({ users })); } catch(e){}
       }
 
       function getLocalBackup() {
@@ -1754,17 +1774,9 @@
           const data = snap.val();
           if (!data || !Array.isArray(data.users)) return;
 
-          // Fusionner : conserver le currentUserId local, mettre à jour les données
-          const prevCurrentId = currentUserId;
+          // Fusionner : conserver les préférences locales, mettre à jour les données
           users = data.users;
-
-          // Si l'utilisateur courant local existe toujours, le garder sélectionné
-          if (users.find(u => u.id === prevCurrentId)) {
-            currentUserId = prevCurrentId;
-          } else {
-            currentUserId = data.currentUserId || users[0]?.id;
-          }
-
+          _applyLocalPrefs();   // remet currentUserId/Year/Compare locaux
           setLocalBackup();
           loadCurrentUser();
           showSyncToast();
@@ -1810,8 +1822,8 @@
           const snap = await get(ref(db, FB_ROOT));
           const data = snap.val();
           if (data && Array.isArray(data.users) && data.users.length) {
-            users         = data.users;
-            currentUserId = data.currentUserId || users[0].id;
+            users = data.users;
+            _applyLocalPrefs();
             setLocalBackup();
             finishInit();
             startRemoteListener();
@@ -1824,8 +1836,8 @@
         // 2. Fallback localStorage
         const backup = getLocalBackup();
         if (backup && Array.isArray(backup.users) && backup.users.length) {
-          users         = backup.users;
-          currentUserId = backup.currentUserId || users[0].id;
+          users = backup.users;
+          _applyLocalPrefs();
           finishInit();
           startRemoteListener();
           return;
@@ -1846,6 +1858,26 @@
         await saveAllUsers();
         finishInit();
         startRemoteListener();
+      }
+
+      function _applyLocalPrefs() {
+        const prefs = loadLocalPrefs();
+        // Utilisateur sélectionné
+        if (prefs && prefs.currentUserId && users.find(u => u.id === prefs.currentUserId)) {
+          currentUserId = prefs.currentUserId;
+        } else {
+          currentUserId = users[0]?.id || null;
+        }
+        // Année
+        if (prefs && prefs.currentYear && typeof prefs.currentYear === 'number') {
+          currentYear = prefs.currentYear;
+        }
+        // Comparaison
+        if (prefs && prefs.compareUserId && users.find(u => u.id === prefs.compareUserId)) {
+          compareUserId = prefs.compareUserId;
+        } else {
+          compareUserId = null;
+        }
       }
 
       function finishInit() {
@@ -1903,6 +1935,7 @@
       async function switchUser(id) {
         await saveCurrentUserData();
         currentUserId = id;
+        saveLocalPrefs();
         await saveAllUsers();
         loadCurrentUser();
         closeUserDropdown();
@@ -2430,7 +2463,7 @@
         applyTheme(next);
       }
 
-      function changeYear(delta){ currentYear+=delta; updateYearLabels(currentYear); createCalendar(); refreshMonthTints(); }
+      function changeYear(delta){ currentYear+=delta; saveLocalPrefs(); updateYearLabels(currentYear); createCalendar(); refreshMonthTints(); }
 
       function selectZone(zone,btn){
         currentZone=zone; yd().zone=zone;
@@ -2515,7 +2548,7 @@
 
       function doSaveAll(){
         closeSaveModal();
-        const payload = { users, currentUserId };
+        const payload = { users };
         const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
@@ -3329,6 +3362,7 @@
 
       function onCompareSelect(val) {
         compareUserId = val || null;
+        saveLocalPrefs();
         applyCompareOverlay();
         updateCompareLegend();
       }
@@ -3470,7 +3504,7 @@
         toggleSidebar, selectTool, toggleMobileMode, mobileNavMonth,
         openMobileDrawer, closeMobileDrawer, toggleMobUserDropdown, filterMobUsers, addMobUser,
         handleDayClick, cycleStatus, updateConfig, syncZoneLabel, buildGantt,
-        deleteUser, onCompareSelect, clearAll,
+        deleteUser, onCompareSelect, clearAll, saveLocalPrefs,
       });
     </script>
     <!-- ══ MODALE SAUVEGARDE ══ -->
