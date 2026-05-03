@@ -1298,6 +1298,24 @@
           <button class="mini-tool-btn mini-action-btn mini-action-danger" onclick="clearAll()" title="Tout effacer">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
           </button>
+          <div class="mini-divider"></div>
+          <!-- Soldes mini -->
+          <div id="mini-soldes" style="display:flex;flex-direction:column;align-items:center;gap:3px;width:100%;padding:2px 0;">
+            <!-- User A -->
+            <div id="mini-soldes-a" style="display:flex;flex-direction:column;align-items:center;gap:2px;width:100%;">
+              <div style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:white;flex-shrink:0;" id="mini-avatar-a">?</div>
+              <div title="CP en cours" style="font-size:9px;font-weight:700;color:var(--cp-curr);line-height:1;" id="mini-cp-a">—</div>
+              <div title="RTT" style="font-size:9px;font-weight:700;color:var(--rtt);line-height:1;" id="mini-rtt-a">—</div>
+            </div>
+            <!-- Séparateur si comparaison active -->
+            <div id="mini-soldes-sep" style="display:none;width:28px;height:1px;background:var(--border);margin:1px 0;"></div>
+            <!-- User B (comparaison) -->
+            <div id="mini-soldes-b" style="display:none;flex-direction:column;align-items:center;gap:2px;width:100%;opacity:0.6;">
+              <div style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:white;flex-shrink:0;" id="mini-avatar-b">?</div>
+              <div title="CP en cours" style="font-size:9px;font-weight:700;color:var(--cp-curr);line-height:1;" id="mini-cp-b">—</div>
+              <div title="RTT" style="font-size:9px;font-weight:700;color:var(--rtt);line-height:1;" id="mini-rtt-b">—</div>
+            </div>
+          </div>
         </div>
 
         <!-- Full sidebar content (hidden in mini mode) -->
@@ -1572,6 +1590,11 @@
           <span class="user-header-badge" id="user-header-badge" style="display:none;">
             <span class="user-avatar" id="user-header-avatar" style="width:16px;height:16px;font-size:8px;background:#2F5FA8;">?</span>
             <span id="user-header-name">—</span>
+          </span>
+          <span id="compare-header-badge" style="display:none;align-items:center;gap:5px;font-size:12px;color:var(--text-muted);opacity:0.55;border:1px dashed var(--border);border-radius:20px;padding:3px 10px 3px 6px;font-weight:400;">
+            <span style="font-size:10px;color:var(--text-muted);">vs</span>
+            <span class="user-avatar" id="compare-header-avatar" style="width:16px;height:16px;font-size:8px;background:#888;">?</span>
+            <span id="compare-header-name">—</span>
           </span>
           <button id="mobile-toggle-btn" onclick="toggleMobileMode()" title="Mode smartphone">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
@@ -2018,6 +2041,70 @@
         if (hName)   hName.textContent = u.name;
         renderUserList(document.getElementById('user-search-input')?.value || '');
         refreshCompareSelect();
+        updateCompareHeaderBadge();
+        updateMiniSoldes();
+      }
+
+      function updateCompareHeaderBadge() {
+        const cbadge = document.getElementById('compare-header-badge');
+        if (!cbadge) return;
+        if (!compareUserId) {
+          cbadge.style.display = 'none';
+          return;
+        }
+        const uB = users.find(u => u.id === compareUserId);
+        if (!uB) { cbadge.style.display = 'none'; return; }
+        cbadge.style.display = 'inline-flex';
+        const av = document.getElementById('compare-header-avatar');
+        const nm = document.getElementById('compare-header-name');
+        if (av) { av.textContent = userInitials(uB.name); av.style.background = avatarColor(uB); }
+        if (nm) nm.textContent = uB.name;
+      }
+
+      function _calcSoldes(userId) {
+        const u = users.find(x => x.id === userId);
+        if (!u) return null;
+        const yd = ((u.data?.yearData || {})[currentYear]) || {};
+        const cd = yd.calendarData || {};
+        const cfg = yd.cfg || { cp2526: 25, cp2526imp: 0, cp2425: 0, rtt: 11, rttimp: 0 };
+        const countType = (t) => Object.values(cd).filter(v => v.type === t).length;
+        const cp = cfg.cp2526 - countType('cp2526') - countType('cp2526-half') * 0.5;
+        const rtt = cfg.rtt - countType('jrsup');
+        return { cp, rtt, color: avatarColor(u), initials: userInitials(u.name) };
+      }
+
+      function updateMiniSoldes() {
+        const fmt = v => Number.isInteger(v) ? String(v) : v.toFixed(1);
+        const avA = document.getElementById('mini-avatar-a');
+        const cpA = document.getElementById('mini-cp-a');
+        const rttA = document.getElementById('mini-rtt-a');
+        const soldesB = document.getElementById('mini-soldes-b');
+        const sep = document.getElementById('mini-soldes-sep');
+        const avB = document.getElementById('mini-avatar-b');
+        const cpB = document.getElementById('mini-cp-b');
+        const rttB = document.getElementById('mini-rtt-b');
+        if (!avA) return;
+
+        const sA = _calcSoldes(currentUserId);
+        if (sA) {
+          avA.textContent = sA.initials; avA.style.background = sA.color;
+          cpA.textContent = fmt(sA.cp); cpA.title = 'CP restants : ' + fmt(sA.cp);
+          rttA.textContent = fmt(sA.rtt); rttA.title = 'RTT restants : ' + fmt(sA.rtt);
+        }
+
+        if (compareUserId) {
+          const sB = _calcSoldes(compareUserId);
+          if (sB) {
+            soldesB.style.display = 'flex';
+            sep.style.display = 'block';
+            avB.textContent = sB.initials; avB.style.background = sB.color;
+            cpB.textContent = fmt(sB.cp); cpB.title = 'CP restants : ' + fmt(sB.cp);
+            rttB.textContent = fmt(sB.rtt); rttB.title = 'RTT restants : ' + fmt(sB.rtt);
+          }
+        } else {
+          soldesB.style.display = 'none';
+          sep.style.display = 'none';
+        }
       }
 
       function toggleUserDropdown(e) {
@@ -2429,6 +2516,7 @@
         if(document.getElementById('p-count-cp2425')) document.getElementById('p-count-cp2425').textContent = fmt(cfg.cp2425-total2425Used);
         if(document.getElementById('p-count-rtt'))    document.getElementById('p-count-rtt').textContent    = cfg.rtt-placedRtt;
         if(document.getElementById('p-count-reserve'))document.getElementById('p-count-reserve').textContent= countByType('reserve');
+        updateMiniSoldes();
       }
 
       // Ré-applique la transparence des mois si une image de fond est active
@@ -3364,6 +3452,8 @@
         compareUserId = val || null;
         saveLocalPrefs();
         applyCompareOverlay();
+        updateCompareHeaderBadge();
+        updateMiniSoldes();
         updateCompareLegend();
       }
 
@@ -3505,6 +3595,7 @@
         openMobileDrawer, closeMobileDrawer, toggleMobUserDropdown, filterMobUsers, addMobUser,
         handleDayClick, cycleStatus, updateConfig, syncZoneLabel, buildGantt,
         deleteUser, onCompareSelect, clearAll, saveLocalPrefs,
+        updateCompareHeaderBadge, updateMiniSoldes,
       });
     </script>
     <!-- ══ MODALE SAUVEGARDE ══ -->
