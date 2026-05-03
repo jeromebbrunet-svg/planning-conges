@@ -2620,7 +2620,7 @@
         return btn;
       }
 
-      function _doImportAll(data){
+      async function _doImportAll(data){
         await saveCurrentUserData();
         const existingNames = users.map(u=>u.name.toLowerCase());
         let added = 0, updated = 0;
