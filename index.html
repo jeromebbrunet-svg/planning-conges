@@ -1052,17 +1052,30 @@
       }
       .mobile-nav-btn:hover { background: var(--accent-light); border-color: var(--accent-mid); color: var(--accent); }
 
-      body.mobile-mode .calendar-grid { display: block !important; }
-      body.mobile-mode .month { display: none; }
-      body.mobile-mode .month.mobile-visible {
-        display: block;
-        border-radius: 12px;
-        margin: 12px 14px 0;
+      body.mobile-mode .calendar-grid {
+        display: flex !important;
+        flex-direction: row;
+        overflow-x: scroll;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
+        gap: 0;
+        padding: 12px 0 16px;
+        scrollbar-width: none;
       }
+      body.mobile-mode .calendar-grid::-webkit-scrollbar { display: none; }
+      body.mobile-mode .month {
+        display: block !important;
+        flex: 0 0 calc(100vw - 28px);
+        width: calc(100vw - 28px);
+        scroll-snap-align: center;
+        border-radius: 12px;
+        margin: 0 14px;
+        padding: 16px 12px 14px;
+      }
+      body.mobile-mode .month + .month { margin-left: 0; }
       body.mobile-mode .month .month-header { display: none; }
       body.mobile-mode .day { font-size: 14px; }
       body.mobile-mode .weekday { font-size: 11px; }
-      body.mobile-mode .month { padding: 16px 12px 14px; }
 
       #mobile-counters {
         display: none;
@@ -1310,23 +1323,11 @@
           <button class="mini-tool-btn mini-action-btn mini-action-danger" onclick="clearAll()" title="Tout effacer">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
           </button>
-          <div class="mini-divider"></div>
-          <!-- Soldes mini -->
-          <div id="mini-soldes" style="display:flex;flex-direction:column;align-items:center;gap:3px;width:100%;padding:2px 0;">
-            <!-- User A -->
-            <div id="mini-soldes-a" style="display:flex;flex-direction:column;align-items:center;gap:2px;width:100%;">
-              <div style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:white;flex-shrink:0;" id="mini-avatar-a">?</div>
-              <div title="CP en cours" style="font-size:9px;font-weight:700;color:var(--cp-curr);line-height:1;" id="mini-cp-a">—</div>
-              <div title="RTT" style="font-size:9px;font-weight:700;color:var(--rtt);line-height:1;" id="mini-rtt-a">—</div>
-            </div>
-            <!-- Séparateur si comparaison active -->
-            <div id="mini-soldes-sep" style="display:none;width:28px;height:1px;background:var(--border);margin:1px 0;"></div>
-            <!-- User B (comparaison) -->
-            <div id="mini-soldes-b" style="display:none;flex-direction:column;align-items:center;gap:2px;width:100%;opacity:0.6;">
-              <div style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:white;flex-shrink:0;" id="mini-avatar-b">?</div>
-              <div title="CP en cours" style="font-size:9px;font-weight:700;color:var(--cp-curr);line-height:1;" id="mini-cp-b">—</div>
-              <div title="RTT" style="font-size:9px;font-weight:700;color:var(--rtt);line-height:1;" id="mini-rtt-b">—</div>
-            </div>
+          <!-- Soldes mini masqués (infos disponibles dans le header) -->
+          <div id="mini-soldes" style="display:none;">
+            <div id="mini-soldes-a"><div id="mini-avatar-a"></div><div id="mini-cp-a"></div><div id="mini-rtt-a"></div></div>
+            <div id="mini-soldes-sep"></div>
+            <div id="mini-soldes-b"><div id="mini-avatar-b"></div><div id="mini-cp-b"></div><div id="mini-rtt-b"></div></div>
           </div>
         </div>
 
@@ -1646,9 +1647,7 @@
 
         <!-- Mobile top bar (navigation mois) -->
         <div id="mobile-top-bar">
-          <button class="mobile-nav-btn" onclick="mobileNavMonth(-1)" title="Mois précédent">‹</button>
-          <span id="mobile-month-label">Janvier 2025</span>
-          <button class="mobile-nav-btn" onclick="mobileNavMonth(1)" title="Mois suivant">›</button>
+          <span id="mobile-month-label" style="flex:1;text-align:center;">Janvier 2025</span>
           <button onclick="toggleTheme()" style="width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--bg);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;" id="mobile-theme-btn-top" title="Thème">🌙</button>
         </div>
 
@@ -3341,25 +3340,59 @@
         }
       }
 
+      // IntersectionObserver pour mettre à jour le label du mois au scroll
+      let _mobileScrollObserver = null;
+
       function updateMobileView() {
         if (!document.body.classList.contains('mobile-mode')) return;
         const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-        // Top bar label
-        document.getElementById('mobile-month-label').textContent = monthNames[mobileCurrentMonth] + ' ' + currentYear;
         if (document.getElementById('mob-year-display')) document.getElementById('mob-year-display').textContent = currentYear;
-        // Afficher uniquement le mois courant
-        document.querySelectorAll('.month').forEach((m, i) => {
-          m.classList.toggle('mobile-visible', i === mobileCurrentMonth);
-        });
-        // Sync compteurs mobiles
+
+        // Scroller au mois courant sans animation (initialisation)
+        const grid = document.getElementById('calendar-grid');
+        const months = grid ? Array.from(grid.querySelectorAll('.month')) : [];
+        if (grid && months[mobileCurrentMonth]) {
+          // scroll instantané au mois courant
+          const target = months[mobileCurrentMonth];
+          grid.scrollTo({ left: target.offsetLeft - 14, behavior: 'instant' });
+        }
+
+        // Mettre à jour le label
+        document.getElementById('mobile-month-label').textContent = monthNames[mobileCurrentMonth] + ' ' + currentYear;
+
+        // Installer l'observer de scroll pour mettre à jour label + mobileCurrentMonth
+        if (_mobileScrollObserver) _mobileScrollObserver.disconnect();
+        if (grid && months.length) {
+          _mobileScrollObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+              if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+                const idx = months.indexOf(entry.target);
+                if (idx >= 0 && idx !== mobileCurrentMonth) {
+                  mobileCurrentMonth = idx;
+                  document.getElementById('mobile-month-label').textContent = monthNames[idx] + ' ' + currentYear;
+                }
+              }
+            });
+          }, { root: grid, threshold: 0.5 });
+          months.forEach(m => _mobileScrollObserver.observe(m));
+        }
+
         syncMobileCounters();
       }
 
       function mobileNavMonth(dir) {
+        const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
         mobileCurrentMonth += dir;
         if (mobileCurrentMonth < 0)  { mobileCurrentMonth = 11; changeYear(-1); return; }
         if (mobileCurrentMonth > 11) { mobileCurrentMonth = 0;  changeYear(1);  return; }
-        updateMobileView();
+        // Scroller au bon mois avec animation
+        const grid = document.getElementById('calendar-grid');
+        const months = grid ? Array.from(grid.querySelectorAll('.month')) : [];
+        if (grid && months[mobileCurrentMonth]) {
+          months[mobileCurrentMonth].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+        document.getElementById('mobile-month-label').textContent = monthNames[mobileCurrentMonth] + ' ' + currentYear;
+        syncMobileCounters();
       }
 
       function syncMobileCounters() {
