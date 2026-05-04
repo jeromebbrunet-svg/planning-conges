@@ -3507,20 +3507,22 @@
       function refreshCompareSelect() {
         const sel = document.getElementById('compare-select');
         if (!sel) return;
-        const prev = sel.value;
         sel.innerHTML = '<option value="">— Aucun —</option>';
         users.filter(u => u.id !== currentUserId).forEach(u => {
           const opt = document.createElement('option');
           opt.value = u.id;
           opt.textContent = u.name;
-          if (u.id === prev) opt.selected = true;
           sel.appendChild(opt);
         });
-        // Si l'utilisateur comparé n'existe plus, désactiver
-        if (compareUserId && !users.find(u => u.id === compareUserId)) {
-          compareUserId = null;
+        // Toujours synchroniser le select sur compareUserId (source de vérité)
+        if (compareUserId && users.find(u => u.id === compareUserId && u.id !== currentUserId)) {
+          sel.value = compareUserId;
+        } else {
+          if (compareUserId && !users.find(u => u.id === compareUserId && u.id !== currentUserId)) {
+            compareUserId = null;
+            applyCompareOverlay();
+          }
           sel.value = '';
-          applyCompareOverlay();
         }
       }
 
