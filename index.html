@@ -1014,7 +1014,7 @@
       body.mobile-mode .main-header h1 { font-size: 20px; flex-shrink: 0; }
       body.mobile-mode .main-header .year-badge { font-size: 12px; }
       body.mobile-mode #user-compare-bar { width: 100%; }
-      body.mobile-mode #mobile-toggle-btn { display: none !important; }
+      /* mobile-toggle-btn toujours visible pour pouvoir revenir en mode bureau */
       body.mobile-mode #fb-status { margin-left: auto; }
 
       #mobile-top-bar {
@@ -1070,7 +1070,7 @@
         gap: 8px;
         margin: 12px 14px 0;
       }
-      body.mobile-mode #mobile-counters { display: flex !important; }
+      body.mobile-mode #mobile-counters { display: none !important; }
       body.mobile-mode .print-counters-row, body.mobile-mode .print-legend { display: none !important; }
 
       /* Bottom toolbar */
@@ -1985,11 +1985,13 @@
       async function switchUser(id) {
         await saveCurrentUserData();
         // Règle de swap / reset comparaison
-        if (compareUserId === id) {
-          // L'utilisateur sélectionné était le comparé → on swap
-          compareUserId = currentUserId;
+        const prevMainId    = currentUserId;
+        const prevCompareId = compareUserId;
+        if (prevCompareId === id) {
+          // L'utilisateur sélectionné était le comparé → swap
+          compareUserId = prevMainId;
         } else {
-          // Autre changement → on vide la comparaison
+          // Autre utilisateur → vider la comparaison
           compareUserId = null;
         }
         currentUserId = id;
