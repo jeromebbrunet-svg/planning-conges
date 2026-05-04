@@ -6,7 +6,14 @@
     <title>Planning Congés</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-    <link rel="apple-touch-icon" href="favicon-192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="favicon-192.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="favicon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Congés">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#2F5FA8">
+    <link rel="manifest" href="data:application/json;charset=utf-8,%7B%22name%22%3A%22Cong%C3%A9s%20%26%20Absences%22%2C%22short_name%22%3A%22Cong%C3%A9s%22%2C%22description%22%3A%22Gestion%20des%20cong%C3%A9s%20et%20absences%22%2C%22start_url%22%3A%22.%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23F4F2EE%22%2C%22theme_color%22%3A%22%232F5FA8%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22favicon.svg%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%2C%22purpose%22%3A%22any%20maskable%22%7D%2C%7B%22src%22%3A%22favicon-192.png%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fpng%22%2C%22purpose%22%3A%22any%20maskable%22%7D%5D%7D">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap" rel="stylesheet">
@@ -1601,7 +1608,24 @@
       <!-- ═══════════ MAIN ═══════════ -->
       <main class="main">
         <div class="main-header">
-          <h1>Congés &amp; Absences</h1>
+          <h1 style="display:flex;align-items:center;gap:10px;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="30" height="30" style="flex-shrink:0;display:inline-block;">
+              <defs>
+                <linearGradient id="hbg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1C1A17"/><stop offset="100%" stop-color="#2F5FA8"/></linearGradient>
+                <radialGradient id="hglow" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#ffffff" stop-opacity="0.25"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
+                <filter id="hshadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.2"/></filter>
+              </defs>
+              <rect x="6" y="6" width="52" height="52" rx="16" fill="url(#hbg)" filter="url(#hshadow)"/>
+              <circle cx="32" cy="32" r="18" fill="none" stroke="#ffffff20" stroke-width="6"/>
+              <circle cx="32" cy="32" r="18" fill="none" stroke="#E05A4D" stroke-width="6" stroke-linecap="round" stroke-dasharray="40 100" transform="rotate(-90 32 32)"/>
+              <circle cx="32" cy="32" r="18" fill="none" stroke="#2DA066" stroke-width="6" stroke-linecap="round" stroke-dasharray="25 100" stroke-dashoffset="-45" transform="rotate(-90 32 32)"/>
+              <circle cx="32" cy="32" r="18" fill="none" stroke="#D4A017" stroke-width="6" stroke-linecap="round" stroke-dasharray="20 100" stroke-dashoffset="-75" transform="rotate(-90 32 32)"/>
+              <circle cx="32" cy="32" r="7" fill="#ffffff"/>
+              <rect x="29" y="29" width="6" height="6" rx="1.5" fill="#2F5FA8"/>
+              <circle cx="32" cy="28" r="20" fill="url(#hglow)"/>
+            </svg>
+            Congés &amp; Absences
+          </h1>
           <span class="year-badge" id="year-badge-main">Année 2025</span>
           <!-- Barre utilisateur(s) dans le header -->
           <div id="user-compare-bar" style="display:none;flex-direction:column;gap:5px;">
