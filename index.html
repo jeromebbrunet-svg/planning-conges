@@ -1984,16 +1984,14 @@
 
       async function switchUser(id) {
         await saveCurrentUserData();
-        // Règle de swap / reset comparaison
         const prevMainId    = currentUserId;
         const prevCompareId = compareUserId;
         if (prevCompareId === id) {
-          // L'utilisateur sélectionné était le comparé → swap
+          // Cas 1 : on sélectionne le comparé en principal → swap
           compareUserId = prevMainId;
-        } else {
-          // Autre utilisateur → vider la comparaison
-          compareUserId = null;
         }
+        // Cas 2 : on sélectionne un autre user → le comparé reste inchangé
+        // (pas de modification de compareUserId)
         currentUserId = id;
         saveLocalPrefs();
         await saveAllUsers();
