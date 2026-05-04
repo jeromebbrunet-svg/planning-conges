@@ -548,9 +548,10 @@
       }
       .main-header .year-badge {
         font-size: 13px;
-        color: var(--text-muted);
-        font-weight: 300;
+        color: var(--text-primary);
+        font-weight: 400;
         font-style: italic;
+        opacity: 0.75;
       }
 
       /* ── Calendar grid ── */
@@ -1003,7 +1004,18 @@
         padding: 0 0 90px;
         min-height: 100vh;
       }
-      body.mobile-mode .main-header { margin: 0; padding: 10px 14px 0; }
+      body.mobile-mode .main-header {
+        margin: 0;
+        padding: 10px 14px 6px;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+      }
+      body.mobile-mode .main-header h1 { font-size: 20px; flex-shrink: 0; }
+      body.mobile-mode .main-header .year-badge { font-size: 12px; }
+      body.mobile-mode #user-compare-bar { width: 100%; }
+      body.mobile-mode #mobile-toggle-btn { display: none !important; }
+      body.mobile-mode #fb-status { margin-left: auto; }
 
       #mobile-top-bar {
         display: none;
@@ -1058,7 +1070,7 @@
         gap: 8px;
         margin: 12px 14px 0;
       }
-      body.mobile-mode #mobile-counters { display: grid; }
+      body.mobile-mode #mobile-counters { display: flex !important; }
       body.mobile-mode .print-counters-row, body.mobile-mode .print-legend { display: none !important; }
 
       /* Bottom toolbar */
@@ -1598,7 +1610,7 @@
             <!-- Utilisateur comparé (masqué si aucun) -->
             <div id="compare-header-badge" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;opacity:0.75;">
               <span class="user-avatar" id="compare-header-avatar" style="width:20px;height:20px;font-size:9px;background:#888;flex-shrink:0;">?</span>
-              <span id="compare-header-name" style="font-size:12px;font-weight:500;color:var(--text-secondary);">—</span>
+              <span id="compare-header-name" style="font-size:12px;font-weight:500;color:var(--text-primary);">—</span>
               <span id="compare-header-chips" style="display:inline-flex;gap:4px;flex-wrap:wrap;"></span>
             </div>
           </div>
@@ -1607,7 +1619,7 @@
             <span id="mobile-toggle-label">Smartphone</span>
           </button>
           <!-- Indicateur Firebase -->
-          <span id="fb-status" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);margin-left:4px;">
+          <span id="fb-status" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);margin-left:4px;font-weight:500;">
             <span id="fb-dot" style="width:7px;height:7px;border-radius:50%;background:#C0392B;flex-shrink:0;transition:background 0.4s;"></span>
             <span id="fb-label">Connexion…</span>
           </span>
@@ -1641,11 +1653,20 @@
         </div>
 
         <!-- Compteurs mobile -->
-        <div id="mobile-counters">
-          <div class="counter"><div class="counter-value" id="mob-count-cp2526" style="color:var(--cp-curr)">0</div><div class="counter-label" id="mob-lbl-cp2526">CP restants</div></div>
-          <div class="counter"><div class="counter-value" id="mob-count-cp2425" style="color:var(--cp-prev)">0</div><div class="counter-label" id="mob-lbl-cp2425">CP préc.</div></div>
-          <div class="counter"><div class="counter-value" id="mob-count-rtt" style="color:var(--rtt)">0</div><div class="counter-label">RTT restants</div></div>
-          <div class="counter"><div class="counter-value" id="mob-count-css" style="color:var(--css-text)">0</div><div class="counter-label">Sans solde</div></div>
+        <div id="mobile-counters" style="display:none;flex-direction:column;gap:6px;margin:8px 14px 0;">
+          <!-- Utilisateur A -->
+          <div id="mob-row-a" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+            <div class="counter"><div class="counter-value" id="mob-count-cp2526" style="color:var(--cp-curr)">0</div><div class="counter-label" id="mob-lbl-cp2526">CP</div></div>
+            <div class="counter"><div class="counter-value" id="mob-count-cp2425" style="color:var(--cp-prev)">0</div><div class="counter-label" id="mob-lbl-cp2425">CP préc.</div></div>
+            <div class="counter"><div class="counter-value" id="mob-count-rtt" style="color:var(--rtt)">0</div><div class="counter-label">RTT</div></div>
+            <div class="counter"><div class="counter-value" id="mob-count-css" style="color:var(--css-text)">0</div><div class="counter-label">S/solde</div></div>
+          </div>
+          <!-- Utilisateur B (comparaison) -->
+          <div id="mob-row-b" style="display:none;grid-template-columns:repeat(3,1fr);gap:6px;opacity:0.7;border-top:1px solid var(--border);padding-top:6px;">
+            <div class="counter"><div class="counter-value" id="mob-count-cp2526-b" style="color:var(--cp-curr)">0</div><div class="counter-label">CP</div></div>
+            <div class="counter"><div class="counter-value" id="mob-count-cp2425-b" style="color:var(--cp-prev)">0</div><div class="counter-label">CP préc.</div></div>
+            <div class="counter"><div class="counter-value" id="mob-count-rtt-b" style="color:var(--rtt)">0</div><div class="counter-label">RTT</div></div>
+          </div>
         </div>
 
         <div class="calendar-grid" id="calendar-grid"></div>
@@ -2142,6 +2163,23 @@
         } else {
           if (soldesBrow) soldesBrow.style.display = 'none';
           if (sep)        sep.style.display = 'none';
+        }
+
+        // ── MOBILE compteurs comparé ──────────────────────────────────────────
+        const fmt2 = v => Number.isInteger(v) ? String(v) : v.toFixed(1);
+        const mobRowB = document.getElementById('mob-row-b');
+        if (mobRowB) {
+          if (sB) {
+            mobRowB.style.display = 'grid';
+            const mbCp   = document.getElementById('mob-count-cp2526-b');
+            const mbCp2  = document.getElementById('mob-count-cp2425-b');
+            const mbRtt  = document.getElementById('mob-count-rtt-b');
+            if (mbCp)  mbCp.textContent  = fmt2(sB.cp);
+            if (mbCp2) mbCp2.textContent = fmt2(sB.cp2);
+            if (mbRtt) mbRtt.textContent = fmt2(sB.rtt);
+          } else {
+            mobRowB.style.display = 'none';
+          }
         }
       }
 
