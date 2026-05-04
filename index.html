@@ -1588,20 +1588,18 @@
           <h1>Congés &amp; Absences</h1>
           <span class="year-badge" id="year-badge-main">Année 2025</span>
           <!-- Barre utilisateur(s) dans le header -->
-          <div id="user-compare-bar" style="display:none;flex-direction:column;gap:4px;">
+          <div id="user-compare-bar" style="display:none;flex-direction:column;gap:5px;">
             <!-- Utilisateur principal -->
-            <div id="user-header-badge" style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary);">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               <span class="user-avatar" id="user-header-avatar" style="width:20px;height:20px;font-size:9px;background:#2F5FA8;flex-shrink:0;">?</span>
-              <span id="user-header-name" style="font-weight:600;">—</span>
-              <span style="font-size:10px;color:var(--text-muted);white-space:nowrap;" id="header-solde-cp-a"></span>
-              <span style="font-size:10px;color:var(--text-muted);white-space:nowrap;" id="header-solde-rtt-a"></span>
+              <span id="user-header-name" style="font-size:12px;font-weight:600;color:var(--text-primary);">—</span>
+              <span id="user-header-chips" style="display:inline-flex;gap:4px;flex-wrap:wrap;"></span>
             </div>
             <!-- Utilisateur comparé (masqué si aucun) -->
-            <div id="compare-header-badge" style="display:none;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);opacity:0.7;">
+            <div id="compare-header-badge" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;opacity:0.75;">
               <span class="user-avatar" id="compare-header-avatar" style="width:20px;height:20px;font-size:9px;background:#888;flex-shrink:0;">?</span>
-              <span id="compare-header-name" style="font-weight:500;">—</span>
-              <span style="font-size:10px;white-space:nowrap;" id="header-solde-cp-b"></span>
-              <span style="font-size:10px;white-space:nowrap;" id="header-solde-rtt-b"></span>
+              <span id="compare-header-name" style="font-size:12px;font-weight:500;color:var(--text-secondary);">—</span>
+              <span id="compare-header-chips" style="display:inline-flex;gap:4px;flex-wrap:wrap;"></span>
             </div>
           </div>
           <button id="mobile-toggle-btn" onclick="toggleMobileMode()" title="Mode smartphone">
@@ -2048,24 +2046,21 @@
         const btnName   = document.getElementById('user-picker-name');
         if (btnAvatar) { btnAvatar.textContent = ini; btnAvatar.style.background = col; }
         if (btnName)   btnName.textContent = u.name;
-        // Main header badge
-        const badge = document.getElementById('user-header-badge');
-        const hAvatar = document.getElementById('user-header-avatar');
-        const hName   = document.getElementById('user-header-name');
-        if (badge) badge.style.display = users.length > 1 ? 'inline-flex' : 'none';
-        if (hAvatar) { hAvatar.textContent = ini; hAvatar.style.background = col; }
-        if (hName)   hName.textContent = u.name;
         renderUserList(document.getElementById('user-search-input')?.value || '');
         refreshCompareSelect();
-        updateCompareHeaderBadge();
-        updateMiniSoldes();
+        _refreshUserBars();   // gère header + mini sidebar d'un coup
       }
 
       // ── Calcul des soldes d'un utilisateur (depuis ses données Firebase) ──────
       function _calcSoldes(userId) {
         const u = users.find(x => x.id === userId);
         if (!u) return null;
-        const yd = ((u.data?.yearData || {})[currentYear]) || {};
+        // Pour l'utilisateur courant, on utilise la variable locale yearData (à jour)
+        // Pour les autres, on lit depuis u.data (données Firebase)
+        const srcYD = (userId === currentUserId)
+          ? yearData
+          : (u.data?.yearData || {});
+        const yd = (srcYD[currentYear]) || {};
         const cd = yd.calendarData || {};
         const cfg = yd.cfg || { cp2526: 25, cp2526imp: 0, cp2425: 0, rtt: 11, rttimp: 0 };
         const countType = (t) => Object.values(cd).filter(v => v.type === t).length;
@@ -2079,65 +2074,71 @@
       function updateCompareHeaderBadge() { _refreshUserBars(); }
       function updateMiniSoldes()         { _refreshUserBars(); }
 
+      function _soldeChip(label, val, color) {
+        const fmt = v => Number.isInteger(v) ? String(v) : v.toFixed(1);
+        return `<span style="
+          display:inline-flex;align-items:center;gap:3px;
+          background:var(--surface);border:1px solid var(--border);
+          border-radius:5px;padding:1px 6px;font-size:10px;font-weight:600;
+          color:${color};white-space:nowrap;line-height:1.6;
+        ">${label} <span style="font-weight:700;">${fmt(val)}</span></span>`;
+      }
+
       function _refreshUserBars() {
-        const fmt = v => (Number.isInteger(v) ? String(v) : v.toFixed(1));
-        const sA  = _calcSoldes(currentUserId);
-        const sB  = compareUserId ? _calcSoldes(compareUserId) : null;
+        const sA = _calcSoldes(currentUserId);
+        const sB = compareUserId ? _calcSoldes(compareUserId) : null;
 
         // ── HEADER ─────────────────────────────────────────────────────────────
         const bar = document.getElementById('user-compare-bar');
         if (bar) bar.style.display = (sA && users.length > 1) ? 'flex' : 'none';
 
-        // Ligne A
-        const avA = document.getElementById('user-header-avatar');
-        const nmA = document.getElementById('user-header-name');
-        const cpAh  = document.getElementById('header-solde-cp-a');
-        const rttAh = document.getElementById('header-solde-rtt-a');
-        if (sA) {
-          if (avA) { avA.textContent = sA.initials; avA.style.background = sA.color; }
-          if (nmA) nmA.textContent = sA.name;
-          if (cpAh)  cpAh.textContent  = `CP: ${fmt(sA.cp)}`;
-          if (rttAh) rttAh.textContent = `RTT: ${fmt(sA.rtt)}`;
+        function _fillHeaderRow(prefix, s) {
+          const av  = document.getElementById(`${prefix}-header-avatar`);
+          const nm  = document.getElementById(`${prefix}-header-name`);
+          const chips = document.getElementById(`${prefix}-header-chips`);
+          if (!s) return;
+          if (av) { av.textContent = s.initials; av.style.background = s.color; }
+          if (nm) nm.textContent = s.name;
+          if (chips) chips.innerHTML =
+            _soldeChip('CP', s.cp, 'var(--cp-curr)') +
+            (s.cp2 > 0 ? _soldeChip('CP préc.', s.cp2, 'var(--cp-prev)') : '') +
+            _soldeChip('RTT', s.rtt, 'var(--rtt)');
         }
 
-        // Ligne B (comparé)
+        _fillHeaderRow('user', sA);
+
         const rowB = document.getElementById('compare-header-badge');
         if (rowB) {
           if (sB) {
             rowB.style.display = 'flex';
-            const avB = document.getElementById('compare-header-avatar');
-            const nmB = document.getElementById('compare-header-name');
-            const cpBh  = document.getElementById('header-solde-cp-b');
-            const rttBh = document.getElementById('header-solde-rtt-b');
-            if (avB) { avB.textContent = sB.initials; avB.style.background = sB.color; }
-            if (nmB) nmB.textContent = sB.name;
-            if (cpBh)  cpBh.textContent  = `CP: ${fmt(sB.cp)}`;
-            if (rttBh) rttBh.textContent = `RTT: ${fmt(sB.rtt)}`;
+            _fillHeaderRow('compare', sB);
           } else {
             rowB.style.display = 'none';
           }
         }
 
         // ── MINI SIDEBAR ───────────────────────────────────────────────────────
-        const avMA = document.getElementById('mini-avatar-a');
-        const cpMA = document.getElementById('mini-cp-a');
-        const rttMA = document.getElementById('mini-rtt-a');
-        if (avMA && sA) {
-          avMA.textContent = sA.initials; avMA.style.background = sA.color;
-          if (cpMA)  { cpMA.textContent  = fmt(sA.cp);  cpMA.title  = `CP restants: ${fmt(sA.cp)}`; }
-          if (rttMA) { rttMA.textContent = fmt(sA.rtt); rttMA.title = `RTT restants: ${fmt(sA.rtt)}`; }
+        function _fillMini(suffix, s, opacity) {
+          const av  = document.getElementById(`mini-avatar-${suffix}`);
+          const cp  = document.getElementById(`mini-cp-${suffix}`);
+          const rtt = document.getElementById(`mini-rtt-${suffix}`);
+          if (!s || !av) return;
+          const fmt = v => Number.isInteger(v) ? String(v) : v.toFixed(1);
+          av.textContent = s.initials; av.style.background = s.color;
+          if (cp)  { cp.textContent  = fmt(s.cp);  cp.title  = `CP restants: ${fmt(s.cp)}`; }
+          if (rtt) { rtt.textContent = fmt(s.rtt); rtt.title = `RTT restants: ${fmt(s.rtt)}`; }
+          const row = document.getElementById(`mini-soldes-${suffix === 'a' ? 'a' : 'b'}`);
+          if (row) row.style.opacity = opacity;
         }
+
+        _fillMini('a', sA, '1');
+
         const soldesBrow = document.getElementById('mini-soldes-b');
         const sep        = document.getElementById('mini-soldes-sep');
         if (sB) {
-          const avMB  = document.getElementById('mini-avatar-b');
-          const cpMB  = document.getElementById('mini-cp-b');
-          const rttMB = document.getElementById('mini-rtt-b');
+          _fillMini('b', sB, '0.65');
           if (soldesBrow) soldesBrow.style.display = 'flex';
           if (sep)        sep.style.display = 'block';
-          if (avMB)  { avMB.textContent = sB.initials; avMB.style.background = sB.color; }
-          if (cpMB)  { cpMB.textContent  = fmt(sB.cp);  cpMB.title  = `CP restants: ${fmt(sB.cp)}`; }
-          if (rttMB) { rttMB.textContent = fmt(sB.rtt); rttMB.title = `RTT restants: ${fmt(sB.rtt)}`; }
         } else {
           if (soldesBrow) soldesBrow.style.display = 'none';
           if (sep)        sep.style.display = 'none';
