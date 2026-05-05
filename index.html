@@ -1596,6 +1596,14 @@
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.36-3.36L23 10M1 14l5.13 4.36A9 9 0 0 0 20.49 15"/></svg>
               Màj vacances scolaires
             </button>
+            <button class="btn-action" onclick="openShareModal()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              Partager mon planning
+            </button>
+            <button class="btn-action" onclick="openAccountModal()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              Mon compte
+            </button>
             <button class="btn-action btn-danger" onclick="clearAll()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
               Tout effacer
@@ -1768,9 +1776,15 @@
       // ══════════════════════════════════════════
       // FIREBASE — initialisation
       // ══════════════════════════════════════════
-      import { initializeApp }          from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-      import { getDatabase, ref, set, get, onValue, remove }
-                                        from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
+      import { initializeApp }     from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+      import { getDatabase, ref, set, get, onValue, remove, push }
+                                   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
+      import {
+        getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+        signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail,
+        EmailAuthProvider, reauthenticateWithCredential, updateProfile,
+        browserLocalPersistence, browserSessionPersistence, setPersistence
+      } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 
       const firebaseConfig = {
         apiKey:            "AIzaSyATmgvVjZ9tjW7m7yQ-AL0ZO6gWg1ZlOqQ",
@@ -1784,23 +1798,29 @@
 
       const fbApp = initializeApp(firebaseConfig);
       const db    = getDatabase(fbApp);
+      const auth  = getAuth(fbApp);
 
-      // ── Indicateur de connexion ──
-      const connRef = ref(db, '.info/connected');
-      onValue(connRef, snap => {
+      // ── Indicateur connexion réseau ──
+      onValue(ref(db, '.info/connected'), snap => {
         const online = snap.val() === true;
-        const dot  = document.getElementById('fb-dot');
-        const lbl  = document.getElementById('fb-label');
-        if (dot)  dot.style.background  = online ? '#1A7A4A' : '#C0392B';
-        if (lbl)  lbl.textContent       = online ? 'Connecté' : 'Hors ligne';
+        const dot = document.getElementById('fb-dot');
+        const lbl = document.getElementById('fb-label');
+        if (dot) dot.style.background = online ? '#1A7A4A' : '#C0392B';
+        if (lbl) lbl.textContent      = online ? 'Connecté' : 'Hors ligne';
       });
 
-      // ── Helpers Firebase ──
-      const FB_ROOT = 'planning_v1';
+      // ── Chemins Firebase ──
+      let _authUid = null;
+      const FB_V  = 'planning_v3';
+      const fbMyRoot   = ()  => `${FB_V}/${_authUid}`;
+      const fbShared   = (uid) => `${FB_V}_shared/${uid}`;   // données publiques en lecture
+      const fbShareIdx = ()  => `${FB_V}_shareidx`;          // index code → uid
+      const fbInvites  = ()  => `${FB_V}_invites/${_authUid}`;
 
       async function fbSaveAllUsers() {
+        if (!_authUid) return;
         try {
-          await set(ref(db, FB_ROOT), { users });   // currentUserId retiré — local only
+          await set(ref(db, fbMyRoot()), { users });
           setLocalBackup();
         } catch(e) {
           console.warn('Firebase write failed, using localStorage fallback', e);
@@ -1839,25 +1859,29 @@
         } catch(e) { return null; }
       }
 
-      // ── Écoute temps réel : quand un autre navigateur sauvegarde, on recharge ──
-      let _suppressRemoteUpdate = false;   // évite la boucle locale → Firebase → locale
+      // ── Écoute temps réel ──
+      let _suppressRemoteUpdate = false;
       let _remoteListenerActive = false;
+      let _remoteUnsubscribe    = null;
 
       function startRemoteListener() {
-        if (_remoteListenerActive) return;
+        if (_remoteListenerActive || !_authUid) return;
         _remoteListenerActive = true;
-        onValue(ref(db, FB_ROOT), snap => {
+        _remoteUnsubscribe = onValue(ref(db, fbMyRoot()), snap => {
           if (_suppressRemoteUpdate) return;
           const data = snap.val();
           if (!data || !Array.isArray(data.users)) return;
-
-          // Fusionner : conserver les préférences locales, mettre à jour les données
           users = data.users;
-          _applyLocalPrefs();   // remet currentUserId/Year/Compare locaux
+          _applyLocalPrefs();
           setLocalBackup();
           loadCurrentUser();
           showSyncToast();
         });
+      }
+
+      function stopRemoteListener() {
+        if (_remoteUnsubscribe) { _remoteUnsubscribe(); _remoteUnsubscribe = null; }
+        _remoteListenerActive = false;
       }
 
       function showSyncToast() {
@@ -1894,9 +1918,15 @@
       let compareUserId = null;  // id de l'utilisateur à comparer (null = désactivé)
 
       async function initUsersFromStorage() {
-        // 1. Tenter Firebase
+        // Délégué à onAuthStateChanged — ne rien faire ici
+        // Gardé pour compatibilité avec l'appel en bas de script
+      }
+
+      async function bootApp() {
+        if (!_authUid) return;
+        // 1. Firebase
         try {
-          const snap = await get(ref(db, FB_ROOT));
+          const snap = await get(ref(db, fbMyRoot()));
           const data = snap.val();
           if (data && Array.isArray(data.users) && data.users.length) {
             users = data.users;
@@ -1904,12 +1934,12 @@
             setLocalBackup();
             finishInit();
             startRemoteListener();
+            _loadSharedForCompare();
             return;
           }
         } catch(e) {
           console.warn('Firebase read failed, trying localStorage', e);
         }
-
         // 2. Fallback localStorage
         const backup = getLocalBackup();
         if (backup && Array.isArray(backup.users) && backup.users.length) {
@@ -1917,24 +1947,23 @@
           _applyLocalPrefs();
           finishInit();
           startRemoteListener();
+          _loadSharedForCompare();
           return;
         }
-
-        // 3. Premier lancement : créer l'utilisateur par défaut
-        const existing = localStorage.getItem(STORAGE_KEY);
-        let migratedData = null;
-        if (existing) { try { migratedData = JSON.parse(existing); } catch(e){} }
+        // 3. Première connexion : créer l'utilisateur depuis le profil Auth
+        const displayName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Moi';
         const firstUser = {
-          id:    crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
-          name:  'Moi',
+          id:    crypto.randomUUID(),
+          name:  displayName,
           color: PALETTE[0],
-          data:  migratedData || {}
+          data:  {}
         };
         users         = [firstUser];
         currentUserId = firstUser.id;
         await saveAllUsers();
         finishInit();
         startRemoteListener();
+        _loadSharedForCompare();
       }
 
       function _applyLocalPrefs() {
@@ -1962,6 +1991,7 @@
       }
 
       async function saveAllUsers() {
+        if (!_authUid) return;
         _suppressRemoteUpdate = true;
         await window._fbSaveAllUsers();
         setTimeout(() => { _suppressRemoteUpdate = false; }, 1200);
@@ -2101,10 +2131,18 @@
 
       // ── Calcul des soldes d'un utilisateur (depuis ses données Firebase) ──────
       function _calcSoldes(userId) {
-        const u = users.find(x => x.id === userId);
+        let u;
+        if (userId && userId.startsWith('shared:')) {
+          const parts = userId.split(':');
+          const uid = parts[1];
+          const idx = parseInt(parts[2] ?? '0', 10);
+          const sd = _sharedCache[uid];
+          if (!sd) return null;
+          u = sd.users[idx];
+        } else {
+          u = users.find(x => x.id === userId);
+        }
         if (!u) return null;
-        // Pour l'utilisateur courant, on utilise la variable locale yearData (à jour)
-        // Pour les autres, on lit depuis u.data (données Firebase)
         const srcYD = (userId === currentUserId)
           ? yearData
           : (u.data?.yearData || {});
@@ -3569,20 +3607,35 @@
         const sel = document.getElementById('compare-select');
         if (!sel) return;
         sel.innerHTML = '<option value="">— Aucun —</option>';
+
+        // Utilisateurs locaux
         users.filter(u => u.id !== currentUserId).forEach(u => {
           const opt = document.createElement('option');
           opt.value = u.id;
           opt.textContent = u.name;
           sel.appendChild(opt);
         });
-        // Toujours synchroniser le select sur compareUserId (source de vérité)
-        if (compareUserId && users.find(u => u.id === compareUserId && u.id !== currentUserId)) {
+
+        // Collègues partagés
+        for (const [uid, sd] of Object.entries(_sharedCache)) {
+          if (sd.users && sd.users.length) {
+            // Si le collègue a plusieurs utilisateurs, on propose chacun
+            sd.users.forEach((u, idx) => {
+              const opt = document.createElement('option');
+              opt.value = `shared:${uid}:${idx}`;
+              opt.textContent = `${u.name} ✦`;
+              sel.appendChild(opt);
+            });
+          }
+        }
+
+        // Sync sur compareUserId
+        const isLocal  = compareUserId && users.find(u => u.id === compareUserId && u.id !== currentUserId);
+        const isShared = compareUserId && compareUserId.startsWith('shared:');
+        if (isLocal || isShared) {
           sel.value = compareUserId;
         } else {
-          if (compareUserId && !users.find(u => u.id === compareUserId && u.id !== currentUserId)) {
-            compareUserId = null;
-            applyCompareOverlay();
-          }
+          compareUserId = null;
           sel.value = '';
         }
       }
@@ -3611,12 +3664,44 @@
         legend.querySelector('#compare-legend-b span:first-child').style.background = uB.color || '#888';
       }
 
+      const _sharedCache = {};  // uid → {users, name}
+
       function getCompareData(userId) {
+        if (userId && userId.startsWith('shared:')) {
+          const parts = userId.split(':');
+          const uid = parts[1];
+          const idx = parseInt(parts[2] ?? '0', 10);
+          const sd  = _sharedCache[uid];
+          if (!sd) return {};
+          const u = sd.users[idx];
+          if (!u) return {};
+          const yd = ((u.data?.yearData || {})[currentYear]) || {};
+          return yd.calendarData || {};
+        }
         const u = users.find(u => u.id === userId);
         if (!u) return {};
-        const d = u.data || {};
-        const yd = (d.yearData || {})[currentYear] || {};
+        const yd = ((u.data?.yearData || {})[currentYear]) || {};
         return yd.calendarData || {};
+      }
+
+      async function _loadSharedForCompare() {
+        if (!_authUid) return;
+        try {
+          const snap = await get(ref(db, fbShared(_authUid)));
+          const data = snap.val();
+          if (!data) return;
+          for (const [uid, info] of Object.entries(data)) {
+            if (!info.active) continue;
+            try {
+              const ds = await get(ref(db, `${FB_V}/${uid}`));
+              const d  = ds.val();
+              if (d && Array.isArray(d.users)) {
+                _sharedCache[uid] = { users: d.users, name: info.name, selectedIdx: 0 };
+              }
+            } catch(e) {}
+          }
+          refreshCompareSelect();
+        } catch(e) {}
       }
 
       function applyCompareOverlay() {
@@ -3725,8 +3810,418 @@
         if (compareUserId) setTimeout(applyCompareOverlay, 0);
       };
 
-      // ── Init multi-user ──
-      initUsersFromStorage(); // async — appelle finishInit() → loadCurrentUser() en interne
+      // ════════════════════════════════════════════════════════════════
+      // AUTH — Gestion comptes utilisateurs
+      // ════════════════════════════════════════════════════════════════
+
+      function _authErr(code) {
+        return ({
+          'auth/invalid-email':         'Email invalide.',
+          'auth/user-not-found':        'Aucun compte avec cet email.',
+          'auth/wrong-password':        'Mot de passe incorrect.',
+          'auth/invalid-credential':    'Email ou mot de passe incorrect.',
+          'auth/email-already-in-use':  'Un compte existe déjà avec cet email.',
+          'auth/weak-password':         'Mot de passe trop court (6 car. min.).',
+          'auth/too-many-requests':     'Trop de tentatives. Réessayez plus tard.',
+          'auth/requires-recent-login': 'Reconnectez-vous avant ce changement.',
+        })[code] || ('Erreur : ' + code);
+      }
+
+      // ── Écran de connexion ──────────────────────────────────────────
+      function showAuthScreen() {
+        if (document.getElementById('auth-screen')) return;
+        const el = document.createElement('div');
+        el.id = 'auth-screen';
+        el.innerHTML = `
+          <div style="position:fixed;inset:0;background:var(--bg);z-index:99999;display:flex;
+            align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;">
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:18px;
+              box-shadow:0 8px 40px rgba(0,0,0,0.13);padding:36px 32px 28px;width:360px;
+              max-width:calc(100vw - 32px);">
+              <div style="font-family:'DM Serif Display',serif;font-size:24px;color:var(--text-primary);
+                margin-bottom:4px;">Planning Congés</div>
+              <div style="font-size:13px;color:var(--text-muted);margin-bottom:24px;">
+                Connectez-vous pour accéder à votre planning</div>
+              <!-- Tabs -->
+              <div style="display:flex;margin-bottom:20px;border-bottom:2px solid var(--border);">
+                <button id="atab-login" onclick="authTab('login')" style="flex:1;padding:9px;
+                  font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;
+                  color:var(--accent);border-bottom:2px solid var(--accent);margin-bottom:-2px;">
+                  Connexion</button>
+                <button id="atab-signup" onclick="authTab('signup')" style="flex:1;padding:9px;
+                  font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;
+                  color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-2px;">
+                  Créer un compte</button>
+              </div>
+              <!-- Login -->
+              <div id="aform-login">
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                  <input id="ain-email" type="email" placeholder="Email" style="${_iStyle()}">
+                  <input id="ain-pass"  type="password" placeholder="Mot de passe" style="${_iStyle()}">
+                  <label style="display:flex;align-items:center;gap:8px;font-size:12px;
+                    color:var(--text-secondary);cursor:pointer;">
+                    <input type="checkbox" id="ain-remember" checked style="accent-color:var(--accent);">
+                    Rester connecté
+                  </label>
+                  <div id="aerr-login" style="font-size:12px;color:#C0392B;display:none;"></div>
+                  <button onclick="doLogin()" style="${_btnStyle()}">Se connecter</button>
+                  <button onclick="doForgot()" style="background:none;border:none;font-size:12px;
+                    color:var(--text-muted);cursor:pointer;text-decoration:underline;padding:0;
+                    text-align:left;">Mot de passe oublié ?</button>
+                </div>
+              </div>
+              <!-- Signup -->
+              <div id="aform-signup" style="display:none;">
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                  <input id="ain-sname"  type="text"     placeholder="Prénom / Nom" style="${_iStyle()}">
+                  <input id="ain-semail" type="email"    placeholder="Email" style="${_iStyle()}">
+                  <input id="ain-spass"  type="password" placeholder="Mot de passe (6 car. min.)" style="${_iStyle()}">
+                  <label style="display:flex;align-items:center;gap:8px;font-size:12px;
+                    color:var(--text-secondary);cursor:pointer;">
+                    <input type="checkbox" id="ain-sremember" checked style="accent-color:var(--accent);">
+                    Rester connecté
+                  </label>
+                  <div id="aerr-signup" style="font-size:12px;color:#C0392B;display:none;"></div>
+                  <button onclick="doSignup()" style="${_btnStyle()}">Créer mon compte</button>
+                </div>
+              </div>
+            </div>
+          </div>`;
+        document.body.appendChild(el);
+        el.addEventListener('keydown', e => {
+          if (e.key !== 'Enter') return;
+          const isLogin = document.getElementById('aform-login').style.display !== 'none';
+          isLogin ? doLogin() : doSignup();
+        });
+      }
+
+      function _iStyle() {
+        return 'border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;' +
+               'background:var(--bg);color:var(--text-primary);outline:none;font-family:'DM Sans',sans-serif;';
+      }
+      function _btnStyle() {
+        return 'background:var(--accent);color:white;border:none;border-radius:8px;padding:11px;' +
+               'font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;';
+      }
+
+      function authTab(tab) {
+        document.getElementById('aform-login').style.display  = tab === 'login'  ? 'block' : 'none';
+        document.getElementById('aform-signup').style.display = tab === 'signup' ? 'block' : 'none';
+        document.getElementById('atab-login').style.color = tab === 'login' ? 'var(--accent)' : 'var(--text-muted)';
+        document.getElementById('atab-signup').style.color = tab === 'signup' ? 'var(--accent)' : 'var(--text-muted)';
+        document.getElementById('atab-login').style.borderBottomColor = tab === 'login' ? 'var(--accent)' : 'transparent';
+        document.getElementById('atab-signup').style.borderBottomColor = tab === 'signup' ? 'var(--accent)' : 'transparent';
+      }
+
+      async function _setPersist(remember) {
+        await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
+      }
+
+      async function doLogin() {
+        const email = document.getElementById('ain-email')?.value.trim();
+        const pass  = document.getElementById('ain-pass')?.value;
+        const rem   = document.getElementById('ain-remember')?.checked;
+        const err   = document.getElementById('aerr-login');
+        if (!email || !pass) { err.textContent = 'Remplissez tous les champs.'; err.style.display = 'block'; return; }
+        try { await _setPersist(rem); await signInWithEmailAndPassword(auth, email, pass); }
+        catch(e) { err.textContent = _authErr(e.code); err.style.display = 'block'; }
+      }
+
+      async function doSignup() {
+        const name  = document.getElementById('ain-sname')?.value.trim();
+        const email = document.getElementById('ain-semail')?.value.trim();
+        const pass  = document.getElementById('ain-spass')?.value;
+        const rem   = document.getElementById('ain-sremember')?.checked;
+        const err   = document.getElementById('aerr-signup');
+        if (!name || !email || !pass) { err.textContent = 'Remplissez tous les champs.'; err.style.display = 'block'; return; }
+        try {
+          await _setPersist(rem);
+          const cred = await createUserWithEmailAndPassword(auth, email, pass);
+          await updateProfile(cred.user, { displayName: name });
+        } catch(e) { err.textContent = _authErr(e.code); err.style.display = 'block'; }
+      }
+
+      async function doForgot() {
+        const email = document.getElementById('ain-email')?.value.trim();
+        const err   = document.getElementById('aerr-login');
+        if (!email) { err.textContent = "Saisissez votre email d'abord."; err.style.display = 'block'; return; }
+        try {
+          await sendPasswordResetEmail(auth, email);
+          err.style.color = '#1A7A4A';
+          err.textContent = '✓ Email de réinitialisation envoyé.';
+          err.style.display = 'block';
+        } catch(e) { err.textContent = _authErr(e.code); err.style.display = 'block'; }
+      }
+
+      async function authSignOut() {
+        stopRemoteListener();
+        users = []; currentUserId = null; compareUserId = null; yearData = {};
+        _authUid = null;
+        await signOut(auth);
+      }
+
+      // ── Modal Mon Compte ─────────────────────────────────────────────
+      function openAccountModal() {
+        const u = auth.currentUser; if (!u) return;
+        let m = document.getElementById('modal-account');
+        if (!m) {
+          m = document.createElement('div'); m.id = 'modal-account';
+          m.innerHTML = `
+            <div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;
+              display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;">
+              <div style="background:var(--surface);border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.15);
+                width:380px;max-width:calc(100vw - 32px);padding:32px 28px 24px;">
+                <div style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--text-primary);
+                  margin-bottom:4px;">Mon compte</div>
+                <div id="mac-email" style="font-size:12px;color:var(--text-muted);margin-bottom:20px;"></div>
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                  <div style="font-size:12px;font-weight:600;color:var(--text-secondary);
+                    text-transform:uppercase;letter-spacing:0.5px;">Changer le mot de passe</div>
+                  <input id="mac-cur" type="password" placeholder="Mot de passe actuel" style="${_iStyle()}">
+                  <input id="mac-new" type="password" placeholder="Nouveau mot de passe" style="${_iStyle()}">
+                  <div id="mac-msg" style="font-size:12px;display:none;"></div>
+                  <button onclick="doChangePwd()" style="${_btnStyle()}">Changer le mot de passe</button>
+                  <button onclick="doSendReset()" style="background:none;border:none;font-size:12px;
+                    color:var(--text-muted);cursor:pointer;text-decoration:underline;padding:0;
+                    text-align:left;">Recevoir un lien de réinitialisation par email</button>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:24px;
+                  padding-top:16px;border-top:1px solid var(--border);">
+                  <button onclick="authSignOut()" style="background:none;border:1px solid var(--border);
+                    border-radius:8px;padding:8px 14px;font-size:12px;color:var(--text-secondary);
+                    cursor:pointer;">Se déconnecter</button>
+                  <button onclick="closeAccountModal()" style="background:var(--bg);border:1px solid
+                    var(--border);border-radius:8px;padding:8px 18px;font-size:13px;font-weight:500;
+                    color:var(--text-secondary);cursor:pointer;">Fermer</button>
+                </div>
+              </div>
+            </div>`;
+          document.body.appendChild(m);
+        }
+        document.getElementById('mac-email').textContent = u.email;
+        document.getElementById('mac-cur').value = '';
+        document.getElementById('mac-new').value = '';
+        document.getElementById('mac-msg').style.display = 'none';
+        m.style.display = 'flex';
+      }
+
+      function closeAccountModal() {
+        const m = document.getElementById('modal-account');
+        if (m) m.style.display = 'none';
+      }
+
+      async function doChangePwd() {
+        const cur = document.getElementById('mac-cur').value;
+        const nxt = document.getElementById('mac-new').value;
+        const msg = document.getElementById('mac-msg');
+        if (!cur || !nxt) { msg.textContent = 'Remplissez les deux champs.'; msg.style.color='#C0392B'; msg.style.display='block'; return; }
+        try {
+          const cred = EmailAuthProvider.credential(auth.currentUser.email, cur);
+          await reauthenticateWithCredential(auth.currentUser, cred);
+          await updatePassword(auth.currentUser, nxt);
+          msg.textContent = '✓ Mot de passe modifié.'; msg.style.color='#1A7A4A'; msg.style.display='block';
+          document.getElementById('mac-cur').value = ''; document.getElementById('mac-new').value = '';
+        } catch(e) { msg.textContent = _authErr(e.code); msg.style.color='#C0392B'; msg.style.display='block'; }
+      }
+
+      async function doSendReset() {
+        const msg = document.getElementById('mac-msg');
+        try {
+          await sendPasswordResetEmail(auth, auth.currentUser.email);
+          msg.textContent = '✓ Email envoyé.'; msg.style.color='#1A7A4A'; msg.style.display='block';
+        } catch(e) { msg.textContent = _authErr(e.code); msg.style.color='#C0392B'; msg.style.display='block'; }
+      }
+
+      // ── Partage par code à usage unique ──────────────────────────────
+      // Structure Firebase :
+      //   planning_v3_shareidx/{code} = { ownerUid, ownerName, used: false, createdAt }
+      //   planning_v3_shared/{uid}/{fromUid} = { name, active: true/false }
+
+      async function generateShareCode() {
+        if (!_authUid) return null;
+        const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+        const name = auth.currentUser?.displayName || auth.currentUser?.email;
+        await set(ref(db, `${fbShareIdx()}/${code}`), {
+          ownerUid:  _authUid,
+          ownerName: name,
+          used:      false,
+          createdAt: Date.now(),
+        });
+        return code;
+      }
+
+      async function redeemShareCode(code) {
+        const codeRef = ref(db, `${fbShareIdx()}/${code.trim().toUpperCase()}`);
+        const snap = await get(codeRef);
+        if (!snap.exists()) throw new Error('Code introuvable ou expiré.');
+        const info = snap.val();
+        if (info.used)         throw new Error('Ce code a déjà été utilisé.');
+        if (info.ownerUid === _authUid) throw new Error('Vous ne pouvez pas utiliser votre propre code.');
+        const myName = auth.currentUser?.displayName || auth.currentUser?.email;
+        // Marquer code utilisé
+        await set(codeRef, { ...info, used: true, usedBy: _authUid, usedAt: Date.now() });
+        // Partage bidirectionnel
+        await set(ref(db, `${FB_V}_shared/${info.ownerUid}/${_authUid}`), { name: myName, active: true });
+        await set(ref(db, `${FB_V}_shared/${_authUid}/${info.ownerUid}`), { name: info.ownerName, active: true });
+        await _loadSharedForCompare();
+      }
+
+      async function revokeShare(targetUid) {
+        await set(ref(db, `${FB_V}_shared/${_authUid}/${targetUid}/active`), false);
+        await set(ref(db, `${FB_V}_shared/${targetUid}/${_authUid}/active`), false);
+        delete _sharedCache[targetUid];
+        refreshCompareSelect();
+      }
+
+      // ── Modal Partage ─────────────────────────────────────────────────
+      async function openShareModal() {
+        let m = document.getElementById('modal-share');
+        if (!m) {
+          m = document.createElement('div'); m.id = 'modal-share';
+          m.innerHTML = `
+            <div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;
+              display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;">
+              <div style="background:var(--surface);border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.15);
+                width:420px;max-width:calc(100vw - 32px);padding:32px 28px 24px;max-height:90vh;overflow-y:auto;">
+                <div style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--text-primary);
+                  margin-bottom:4px;">Partage de planning</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:20px;">
+                  Partagez votre planning en lecture seule avec un collègue via un code unique.</div>
+
+                <!-- Générer un code -->
+                <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;
+                  padding:16px;margin-bottom:20px;">
+                  <div style="font-size:12px;font-weight:600;color:var(--text-secondary);
+                    text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">
+                    Inviter un collègue</div>
+                  <div id="share-code-display" style="font-size:22px;font-weight:700;letter-spacing:4px;
+                    color:var(--accent);text-align:center;padding:10px;display:none;
+                    background:var(--accent-light);border-radius:8px;margin-bottom:10px;"></div>
+                  <div id="share-code-hint" style="font-size:11px;color:var(--text-muted);
+                    text-align:center;margin-bottom:10px;display:none;">
+                    Code à usage unique — transmettez-le à votre collègue</div>
+                  <button onclick="doGenCode()" style="${_btnStyle()};width:100%;">
+                    Générer un code d'invitation</button>
+                </div>
+
+                <!-- Utiliser un code -->
+                <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;
+                  padding:16px;margin-bottom:20px;">
+                  <div style="font-size:12px;font-weight:600;color:var(--text-secondary);
+                    text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">
+                    Rejoindre un collègue</div>
+                  <div style="display:flex;gap:8px;">
+                    <input id="share-code-input" type="text" placeholder="Code (ex: AB12CD)"
+                      style="${_iStyle()};flex:1;text-transform:uppercase;letter-spacing:2px;">
+                    <button onclick="doRedeemCode()" style="${_btnStyle()};white-space:nowrap;">Rejoindre</button>
+                  </div>
+                  <div id="share-redeem-msg" style="font-size:12px;margin-top:8px;display:none;"></div>
+                </div>
+
+                <!-- Collègues partagés -->
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:var(--text-secondary);
+                    text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">
+                    Accès actifs</div>
+                  <div id="share-active-list" style="display:flex;flex-direction:column;gap:6px;">
+                    <div style="font-size:12px;color:var(--text-muted);">Chargement…</div>
+                  </div>
+                </div>
+
+                <div style="display:flex;justify-content:flex-end;margin-top:24px;
+                  padding-top:16px;border-top:1px solid var(--border);">
+                  <button onclick="closeShareModal()" style="background:var(--bg);border:1px solid var(--border);
+                    border-radius:8px;padding:8px 18px;font-size:13px;font-weight:500;
+                    color:var(--text-secondary);cursor:pointer;">Fermer</button>
+                </div>
+              </div>
+            </div>`;
+          document.body.appendChild(m);
+        }
+        document.getElementById('share-code-display').style.display = 'none';
+        document.getElementById('share-code-hint').style.display = 'none';
+        document.getElementById('share-code-input').value = '';
+        document.getElementById('share-redeem-msg').style.display = 'none';
+        m.style.display = 'flex';
+        _loadShareActiveList();
+      }
+
+      function closeShareModal() {
+        const m = document.getElementById('modal-share');
+        if (m) m.style.display = 'none';
+      }
+
+      async function doGenCode() {
+        const code = await generateShareCode();
+        if (!code) return;
+        const d = document.getElementById('share-code-display');
+        const h = document.getElementById('share-code-hint');
+        d.textContent = code; d.style.display = 'block';
+        h.style.display = 'block';
+        // Auto-copier
+        try { navigator.clipboard.writeText(code); } catch(e) {}
+      }
+
+      async function doRedeemCode() {
+        const code = document.getElementById('share-code-input').value.trim().toUpperCase();
+        const msg  = document.getElementById('share-redeem-msg');
+        if (!code) return;
+        try {
+          await redeemShareCode(code);
+          msg.textContent = '✓ Accès établi ! Le planning de votre collègue est maintenant disponible.';
+          msg.style.color = '#1A7A4A'; msg.style.display = 'block';
+          document.getElementById('share-code-input').value = '';
+          _loadShareActiveList();
+          refreshCompareSelect();
+        } catch(e) {
+          msg.textContent = e.message; msg.style.color = '#C0392B'; msg.style.display = 'block';
+        }
+      }
+
+      async function _loadShareActiveList() {
+        const list = document.getElementById('share-active-list');
+        if (!list) return;
+        try {
+          const snap = await get(ref(db, `${FB_V}_shared/${_authUid}`));
+          const data = snap.val();
+          const active = data ? Object.entries(data).filter(([,v]) => v.active) : [];
+          if (!active.length) {
+            list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Aucun partage actif.</div>';
+            return;
+          }
+          list.innerHTML = active.map(([uid, info]) => `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;
+              padding:8px 12px;background:var(--bg);border-radius:8px;border:1px solid var(--border);">
+              <div style="font-size:13px;font-weight:600;color:var(--text-primary);">${info.name}</div>
+              <button onclick="revokeShare('${uid}')" style="background:none;border:1px solid var(--border);
+                border-radius:6px;padding:5px 10px;font-size:11px;color:var(--text-muted);cursor:pointer;">
+                Révoquer</button>
+            </div>`).join('');
+        } catch(e) {
+          list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Erreur de chargement.</div>';
+        }
+      }
+
+      // ── Boutons dans la sidebar ───────────────────────────────────────
+      // (boutons ajoutés au HTML ci-dessous)
+
+      // ── onAuthStateChanged : pilote tout ─────────────────────────────
+      onAuthStateChanged(auth, async user => {
+        if (user) {
+          _authUid = user.uid;
+          document.getElementById('auth-screen')?.remove();
+          await bootApp();
+        } else {
+          _authUid = null;
+          stopRemoteListener();
+          users = []; currentUserId = null; compareUserId = null; yearData = {};
+          showAuthScreen();
+        }
+      });
+
+      // ── Init ──────────────────────────────────────────────────────────
+      initUsersFromStorage(); // no-op, boot piloté par onAuthStateChanged
+
       // Expose functions to global scope (required because script is type="module")
       Object.assign(window, {
         toggleTheme, toggleUserDropdown, closeUserDropdown, filterUsers, addUser,
@@ -3739,6 +4234,10 @@
         handleDayClick, cycleStatus, updateConfig, syncZoneLabel, buildGantt,
         deleteUser, onCompareSelect, clearAll, saveLocalPrefs,
         updateCompareHeaderBadge, updateMiniSoldes,
+        // Auth
+        authTab, doLogin, doSignup, doForgot, authSignOut,
+        openAccountModal, closeAccountModal, doChangePwd, doSendReset,
+        openShareModal, closeShareModal, doGenCode, doRedeemCode, revokeShare,
       });
     </script>
     <!-- ══ MODALE SAUVEGARDE ══ -->
@@ -3900,6 +4399,14 @@
             <button class="btn-action" onclick="openGanttModal();closeMobileDrawer()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="3" rx="1"/><rect x="3" y="10" width="13" height="3" rx="1"/><rect x="3" y="16" width="16" height="3" rx="1"/></svg>
               Gantt équipe
+            </button>
+            <button class="btn-action" onclick="openShareModal();closeMobileDrawer()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              Partager mon planning
+            </button>
+            <button class="btn-action" onclick="openAccountModal();closeMobileDrawer()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              Mon compte
             </button>
             <button class="btn-action btn-danger" onclick="if(confirm('Effacer toutes les données ?')){clearAll();closeMobileDrawer();}">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
