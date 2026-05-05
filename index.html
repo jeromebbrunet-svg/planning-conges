@@ -1728,10 +1728,45 @@
 
     <!-- ══ ZONE PICKER MODAL ══ -->
     <div id="zone-picker-modal" role="dialog" aria-modal="true" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;align-items:center;justify-content:center;">
-      <div style="background:var(--surface);border-radius:14px;box-shadow:var(--shadow-md);width:360px;padding:28px 28px 22px;font-family:'DM Sans',sans-serif;">
-        <div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--text-primary);margin-bottom:6px;">Vacances scolaires</div>
-        <div style="font-size:12.5px;color:var(--text-secondary);margin-bottom:20px;line-height:1.5;">Ajouter des lignes de référence pour les vacances scolaires en tête du Gantt&nbsp;?</div>
-        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;">
+      <div style="background:var(--surface);border-radius:14px;box-shadow:var(--shadow-md);width:420px;max-width:calc(100vw - 24px);max-height:90vh;overflow-y:auto;padding:28px 28px 22px;font-family:'DM Sans',sans-serif;">
+        <div style="font-family:'DM Serif Display',serif;font-size:18px;color:var(--text-primary);margin-bottom:4px;">Générer le Gantt</div>
+        <div style="font-size:12.5px;color:var(--text-secondary);margin-bottom:20px;line-height:1.5;">Choisissez les utilisateurs et les zones scolaires à inclure.</div>
+
+        <!-- ── Sélection des utilisateurs ── -->
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Utilisateurs</div>
+
+        <!-- Mode de sélection -->
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">
+          <label id="zp-users-mode-all-label" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;border:1px solid var(--accent-mid);background:var(--accent-light);cursor:pointer;transition:all 0.15s;">
+            <input type="radio" name="zp-users-mode" id="zp-users-mode-all" value="all" checked style="accent-color:var(--accent);cursor:pointer;">
+            <span style="font-size:13px;font-weight:500;color:var(--text-primary);">Mon compte (tous)</span>
+            <span style="margin-left:auto;font-size:11px;color:var(--text-muted);" id="zp-users-mode-all-count"></span>
+          </label>
+          <label id="zp-users-mode-shared-label" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer;transition:all 0.15s;" id="zp-shared-row">
+            <input type="radio" name="zp-users-mode" id="zp-users-mode-shared" value="shared" style="accent-color:var(--accent);cursor:pointer;">
+            <span style="font-size:13px;font-weight:500;color:var(--text-primary);">Utilisateurs partagés (tous)</span>
+            <span style="margin-left:auto;font-size:11px;color:var(--text-muted);" id="zp-users-mode-shared-count"></span>
+          </label>
+          <label id="zp-users-mode-both-label" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer;transition:all 0.15s;">
+            <input type="radio" name="zp-users-mode" id="zp-users-mode-both" value="both" style="accent-color:var(--accent);cursor:pointer;">
+            <span style="font-size:13px;font-weight:500;color:var(--text-primary);">Mon compte + partagés</span>
+            <span style="margin-left:auto;font-size:11px;color:var(--text-muted);" id="zp-users-mode-both-count"></span>
+          </label>
+          <label id="zp-users-mode-custom-label" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;border:1px solid var(--border);cursor:pointer;transition:all 0.15s;">
+            <input type="radio" name="zp-users-mode" id="zp-users-mode-custom" value="custom" style="accent-color:var(--accent);cursor:pointer;">
+            <span style="font-size:13px;font-weight:500;color:var(--text-primary);">Sélection personnalisée</span>
+          </label>
+        </div>
+
+        <!-- Liste de sélection personnalisée (masquée par défaut) -->
+        <div id="zp-custom-users" style="display:none;flex-direction:column;gap:5px;margin-bottom:12px;padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border-soft);max-height:200px;overflow-y:auto;"></div>
+
+        <!-- Séparateur -->
+        <div style="height:1px;background:var(--border-soft);margin:16px 0;"></div>
+
+        <!-- ── Vacances scolaires ── -->
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Vacances scolaires <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optionnel)</span></div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:24px;">
           <label id="zp-label-A" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:1px solid var(--border);cursor:pointer;transition:all 0.15s;">
             <input type="checkbox" id="zp-A" value="A" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;">
             <span style="font-size:13px;font-weight:500;color:var(--text-primary);">Zone A</span>
@@ -1742,14 +1777,14 @@
             <span style="font-size:13px;font-weight:500;color:var(--text-primary);">Zone B</span>
             <span style="margin-left:auto;font-size:11px;color:var(--text-muted);">Aix-Marseille, Nantes, Paris…</span>
           </label>
-          <label id="zp-label-C" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:1px solid var(--accent-mid);background:var(--accent-light);cursor:pointer;transition:all 0.15s;">
-            <input type="checkbox" id="zp-C" value="C" checked style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;">
+          <label id="zp-label-C" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:1px solid var(--border);cursor:pointer;transition:all 0.15s;">
+            <input type="checkbox" id="zp-C" value="C" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;">
             <span style="font-size:13px;font-weight:500;color:var(--text-primary);">Zone C</span>
             <span style="margin-left:auto;font-size:11px;color:var(--text-muted);">Créteil, Paris, Versailles…</span>
           </label>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
-          <button onclick="confirmZonePicker(false)" style="padding:9px 18px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text-secondary);font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s;" onmouseover="this.style.background='var(--accent-light)'" onmouseout="this.style.background='var(--bg)'">Sans vacances scolaires</button>
+          <button onclick="document.getElementById('zone-picker-modal').style.display='none'" style="padding:9px 18px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text-secondary);font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s;" onmouseover="this.style.background='var(--accent-light)'" onmouseout="this.style.background='var(--bg)'">Annuler</button>
           <button onclick="confirmZonePicker(true)" style="padding:9px 18px;border:none;border-radius:8px;background:var(--accent);color:white;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Générer le Gantt</button>
         </div>
       </div>
@@ -3076,16 +3111,125 @@
       // ── Gantt Modal ──
       function openGanttModal() {
         saveCurrentUserData();// fire-and-forget ok
-        // Sync zone C checkbox to current zone by default
         const zModal = document.getElementById('zone-picker-modal');
-        // Reset checkboxes — pre-check current user zone
+
+        // Reset zone checkboxes — pre-check current user zone
         ['A','B','C'].forEach(z => {
           const cb = document.getElementById('zp-'+z);
           cb.checked = (z === currentZone);
           syncZoneLabel(z);
           cb.onchange = () => syncZoneLabel(z);
         });
+
+        // Reset user mode to 'all'
+        const modeAll = document.getElementById('zp-users-mode-all');
+        if (modeAll) { modeAll.checked = true; syncUserModeLabels(); }
+
+        // Update counts and populate user list
+        _zpRefreshUserPicker();
+
+        // Wire radio buttons
+        document.querySelectorAll('input[name="zp-users-mode"]').forEach(r => {
+          r.onchange = () => syncUserModeLabels();
+        });
+
         zModal.style.display = 'flex';
+      }
+
+      function _zpRefreshUserPicker() {
+        // Count labels
+        const localCount  = users.length;
+        let sharedCount = 0;
+        for (const [, sd] of Object.entries(_sharedCache)) {
+          if (sd.users) sharedCount += sd.users.length;
+        }
+        const el = (id) => document.getElementById(id);
+        if (el('zp-users-mode-all-count'))    el('zp-users-mode-all-count').textContent    = localCount + ' pers.';
+        if (el('zp-users-mode-shared-count')) el('zp-users-mode-shared-count').textContent = sharedCount + ' pers.';
+        if (el('zp-users-mode-both-count'))   el('zp-users-mode-both-count').textContent   = (localCount + sharedCount) + ' pers.';
+
+        // Masquer la ligne "partagés" s'il n'y en a pas
+        const sharedRow = el('zp-users-mode-shared-label');
+        const bothRow   = el('zp-users-mode-both-label');
+        if (sharedRow) sharedRow.style.opacity  = sharedCount ? '1' : '0.4';
+        if (bothRow)   bothRow.style.opacity    = sharedCount ? '1' : '0.4';
+
+        // Populate custom user list
+        const box = el('zp-custom-users');
+        if (!box) return;
+        box.innerHTML = '';
+
+        // Local users
+        if (localCount) {
+          const hdr = document.createElement('div');
+          hdr.style.cssText = 'font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-muted);padding:2px 2px 4px;';
+          hdr.textContent = 'Mon compte';
+          box.appendChild(hdr);
+          users.forEach(u => {
+            const lbl = document.createElement('label');
+            lbl.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 4px;cursor:pointer;border-radius:5px;transition:background 0.1s;';
+            lbl.onmouseover = () => lbl.style.background = 'var(--accent-light)';
+            lbl.onmouseout  = () => lbl.style.background = '';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox'; cb.checked = true;
+            cb.dataset.kind = 'local'; cb.dataset.uid = u.id;
+            cb.style.cssText = 'accent-color:var(--accent);cursor:pointer;flex-shrink:0;';
+            const dot = document.createElement('div');
+            dot.style.cssText = `width:9px;height:9px;border-radius:50%;background:${u.color || '#888'};flex-shrink:0;`;
+            const nm = document.createElement('span');
+            nm.textContent = u.name;
+            nm.style.cssText = 'font-size:12px;color:var(--text-primary);';
+            lbl.appendChild(cb); lbl.appendChild(dot); lbl.appendChild(nm);
+            box.appendChild(lbl);
+          });
+        }
+
+        // Shared users
+        let hasShared = false;
+        for (const [uid, sd] of Object.entries(_sharedCache)) {
+          if (!sd.users || !sd.users.length) continue;
+          if (!hasShared) {
+            const hdr = document.createElement('div');
+            hdr.style.cssText = 'font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-muted);padding:8px 2px 4px;';
+            hdr.textContent = 'Partagés ✦';
+            box.appendChild(hdr);
+            hasShared = true;
+          }
+          sd.users.forEach((u, idx) => {
+            const lbl = document.createElement('label');
+            lbl.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 4px;cursor:pointer;border-radius:5px;transition:background 0.1s;';
+            lbl.onmouseover = () => lbl.style.background = 'var(--accent-light)';
+            lbl.onmouseout  = () => lbl.style.background = '';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox'; cb.checked = true;
+            cb.dataset.kind = 'shared'; cb.dataset.uid = uid; cb.dataset.idx = idx;
+            cb.style.cssText = 'accent-color:var(--accent);cursor:pointer;flex-shrink:0;';
+            const dot = document.createElement('div');
+            dot.style.cssText = `width:9px;height:9px;border-radius:50%;background:${u.color || '#666'};border:1.5px solid rgba(0,0,0,0.15);flex-shrink:0;`;
+            const nm = document.createElement('span');
+            nm.textContent = u.name + ' ✦';
+            nm.style.cssText = 'font-size:12px;color:var(--text-primary);';
+            lbl.appendChild(cb); lbl.appendChild(dot); lbl.appendChild(nm);
+            box.appendChild(lbl);
+          });
+        }
+      }
+
+      function syncUserModeLabels() {
+        const mode = document.querySelector('input[name="zp-users-mode"]:checked')?.value || 'all';
+        ['all','shared','both','custom'].forEach(m => {
+          const lbl = document.getElementById('zp-users-mode-'+m+'-label');
+          if (!lbl) return;
+          if (m === mode) {
+            lbl.style.border = '1px solid var(--accent-mid)';
+            lbl.style.background = 'var(--accent-light)';
+          } else {
+            lbl.style.border = '1px solid var(--border)';
+            lbl.style.background = 'transparent';
+          }
+        });
+        const customBox = document.getElementById('zp-custom-users');
+        if (customBox) customBox.style.display = (mode === 'custom') ? 'flex' : 'none';
       }
 
       function syncZoneLabel(z) {
@@ -3100,13 +3244,76 @@
         }
       }
 
+      // Returns the array of user data rows to include in the Gantt
+      function _zpGetSelectedUsersData() {
+        const mode = document.querySelector('input[name="zp-users-mode"]:checked')?.value || 'all';
+
+        if (mode === 'all') {
+          return users.map(u => {
+            const d = u.data || {};
+            const yd = (d.yearData || {})[currentYear] || {};
+            return { name: u.name, color: u.color, calendarData: yd.calendarData || {} };
+          });
+        }
+
+        if (mode === 'shared') {
+          const rows = [];
+          for (const [, sd] of Object.entries(_sharedCache)) {
+            (sd.users || []).forEach(u => {
+              const yd = (u.data?.yearData || {})[currentYear] || {};
+              rows.push({ name: u.name + ' ✦', color: u.color || '#666', calendarData: yd.calendarData || {} });
+            });
+          }
+          return rows;
+        }
+
+        if (mode === 'both') {
+          const rows = users.map(u => {
+            const d = u.data || {};
+            const yd = (d.yearData || {})[currentYear] || {};
+            return { name: u.name, color: u.color, calendarData: yd.calendarData || {} };
+          });
+          for (const [, sd] of Object.entries(_sharedCache)) {
+            (sd.users || []).forEach(u => {
+              const yd = (u.data?.yearData || {})[currentYear] || {};
+              rows.push({ name: u.name + ' ✦', color: u.color || '#666', calendarData: yd.calendarData || {} });
+            });
+          }
+          return rows;
+        }
+
+        // custom
+        const rows = [];
+        document.querySelectorAll('#zp-custom-users input[type="checkbox"]:checked').forEach(cb => {
+          if (cb.dataset.kind === 'local') {
+            const u = users.find(x => x.id === cb.dataset.uid);
+            if (u) {
+              const yd = (u.data?.yearData || {})[currentYear] || {};
+              rows.push({ name: u.name, color: u.color, calendarData: yd.calendarData || {} });
+            }
+          } else {
+            const sd = _sharedCache[cb.dataset.uid];
+            const idx = parseInt(cb.dataset.idx || '0', 10);
+            const u = sd?.users?.[idx];
+            if (u) {
+              const yd = (u.data?.yearData || {})[currentYear] || {};
+              rows.push({ name: u.name + ' ✦', color: u.color || '#666', calendarData: yd.calendarData || {} });
+            }
+          }
+        });
+        return rows;
+      }
+
       function confirmZonePicker(withZones) {
         document.getElementById('zone-picker-modal').style.display = 'none';
         const selectedZones = withZones
           ? ['A','B','C'].filter(z => document.getElementById('zp-'+z).checked)
           : [];
-        document.getElementById('gantt-title').textContent = `Gantt — tous les utilisateurs — ${currentYear}`;
-        buildGantt(selectedZones);
+        const selectedUsersData = _zpGetSelectedUsersData();
+        const mode = document.querySelector('input[name="zp-users-mode"]:checked')?.value || 'all';
+        const modeLabel = mode === 'all' ? 'Mon compte' : mode === 'shared' ? 'Partagés' : mode === 'both' ? 'Tous' : 'Sélection';
+        document.getElementById('gantt-title').textContent = `Gantt — ${modeLabel} — ${currentYear}`;
+        buildGantt(selectedZones, selectedUsersData);
         document.getElementById('gantt-modal').classList.add('open');
       }
 
@@ -3155,7 +3362,7 @@
         'css':    'Sans solde',
       };
 
-      function buildGantt(selectedZones = []) {
+      function buildGantt(selectedZones = [], usersData = null) {
         const y = currentYear;
         const holidays = getHolidays(y);
 
@@ -3178,12 +3385,14 @@
           holidayDates: getSchoolHolidayDatesForZone(y, z),
         }));
 
-        // Collect per-user data
-        const usersData = users.map(u => {
-          const d = u.data || {};
-          const yd = (d.yearData || {})[y] || {};
-          return { name: u.name, color: u.color, calendarData: yd.calendarData || {} };
-        });
+        // Collect per-user data (fallback to all local users if not provided)
+        if (!usersData) {
+          usersData = users.map(u => {
+            const d = u.data || {};
+            const yd = (d.yearData || {})[y] || {};
+            return { name: u.name, color: u.color, calendarData: yd.calendarData || {} };
+          });
+        }
 
         // All rows: school rows first, then users
         const allRows = [...schoolRows, ...usersData];
@@ -4263,6 +4472,7 @@
         closeImportModal, importFromFile, exportPDF, toggleSwapMode,
         applyBg, clearBg, updateBgOpacity, updateMonthOpacity,
         startRename, openGanttModal, closeGanttModal, printGantt, confirmZonePicker,
+        syncUserModeLabels, _zpRefreshUserPicker,
         toggleSidebar, selectTool, toggleMobileMode, mobileNavMonth,
         openMobileDrawer, closeMobileDrawer, toggleMobUserDropdown, filterMobUsers, addMobUser,
         handleDayClick, cycleStatus, updateConfig, syncZoneLabel, buildGantt,
