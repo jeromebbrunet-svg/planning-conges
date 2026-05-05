@@ -1869,8 +1869,9 @@
         try {
           const snap = await get(ref(db, `${FB_V}_shared/${_authUid}`));
           const data = snap.val();
-          const hasActive = data && Object.values(data).some(v => v.active);
-          if (hasActive) {
+          // Publier seulement si au moins un accès outbound actif existe
+          const hasActiveOut = data && Object.values(data).some(v => v.active && v.direction === 'out');
+          if (hasActiveOut) {
             await set(ref(db, `${FB_V}_pub/${_authUid}`), { users });
           }
         } catch(e) {}
@@ -4307,8 +4308,10 @@
         // Marquer code utilisé
         await set(codeRef, { ...info, used: true, usedBy: _authUid, usedAt: Date.now() });
         // Partage bidirectionnel
-        await set(ref(db, `${FB_V}_shared/${info.ownerUid}/${_authUid}`), { name: myName, active: true });
-        await set(ref(db, `${FB_V}_shared/${_authUid}/${info.ownerUid}`), { name: info.ownerName, active: true });
+        // Pour l'owner : mon entrée dans son nœud = outbound (il me partage vers moi)
+        await set(ref(db, `${FB_V}_shared/${info.ownerUid}/${_authUid}`), { name: myName, active: true, direction: 'out' });
+        // Pour moi : son entrée dans mon nœud = inbound (je reçois son planning)
+        await set(ref(db, `${FB_V}_shared/${_authUid}/${info.ownerUid}`), { name: info.ownerName, active: true, direction: 'in' });
         await _loadSharedForCompare();
       }
 
@@ -4317,14 +4320,15 @@
       // "inbound"  = je vois LE planning de targetUid (ils me partagent)
 
       async function suspendShareOutbound(targetUid) {
-        await set(ref(db, `${FB_V}_shared/${targetUid}/${_authUid}/active`), false);
+        // On écrit dans notre propre nœud (autorisé) pour suspendre la visibilité
+        await set(ref(db, `${FB_V}_shared/${_authUid}/${targetUid}/active`), false);
         await _conditionalUnpublish();
         _loadShareActiveList();
       }
 
       async function resumeShareOutbound(targetUid) {
-        await set(ref(db, `${FB_V}_shared/${targetUid}/${_authUid}/active`), true);
-        _publishSharedData();
+        await set(ref(db, `${FB_V}_shared/${_authUid}/${targetUid}/active`), true);
+        await _publishSharedData();
         _loadShareActiveList();
       }
 
@@ -4355,11 +4359,10 @@
 
       async function _conditionalUnpublish() {
         try {
-          const snap = await get(ref(db, `${FB_V}_shared`));
-          const all = snap.val() || {};
-          const stillActive = Object.entries(all).some(([uid, conns]) =>
-            uid !== _authUid && conns[_authUid]?.active === true
-          );
+          // On lit uniquement notre propre nœud pour voir s'il reste des outbound actifs
+          const snap = await get(ref(db, `${FB_V}_shared/${_authUid}`));
+          const data = snap.val() || {};
+          const stillActive = Object.values(data).some(v => v.active && v.direction === 'out');
           if (!stillActive) {
             await set(ref(db, `${FB_V}_pub/${_authUid}`), null);
           }
@@ -4518,60 +4521,62 @@
         const inList  = document.getElementById('share-inbound-list');
         if (!outList || !inList) return;
 
-        try {
-          // Récupérer tout le nœud _shared pour trouver les deux sens
-          const snapAll = await get(ref(db, `${FB_V}_shared`));
-          const allData = snapAll.val() || {};
+        outList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Chargement…</div>';
+        inList.innerHTML  = '<div style="font-size:12px;color:var(--text-muted);">Chargement…</div>';
 
-          // OUTBOUND : qui peut voir mon planning ?
-          // => entrées dans allData[targetUid][_authUid]
-          outList.innerHTML = '';
+        try {
+          // On ne lit QUE notre propre nœud — toujours autorisé par les règles Firebase
+          const snap = await get(ref(db, `${FB_V}_shared/${_authUid}`));
+          const myConns = snap.val() || {};
+
           const outEntries = [];
-          for (const [targetUid, conns] of Object.entries(allData)) {
-            if (targetUid === _authUid) continue;
-            const conn = conns[_authUid];
-            if (conn && conn.name !== undefined) {
-              // conn.name = mon nom vu par eux; on veut le nom du targetUid
-              // Chercher leur nom dans allData[_authUid][targetUid]
-              const theirName = allData[_authUid]?.[targetUid]?.name || conn.name || targetUid;
-              outEntries.push({ uid: targetUid, name: theirName, active: conn.active === true });
+          const inEntries  = [];
+
+          for (const [uid, info] of Object.entries(myConns)) {
+            if (!info || info.name === undefined) continue;
+            const entry = { uid, name: info.name, active: info.active === true };
+            if (info.direction === 'out') {
+              outEntries.push(entry);
+            } else {
+              // 'in' ou pas de direction (rétrocompat) → inbound
+              inEntries.push(entry);
             }
           }
+
+          // OUTBOUND
+          outList.innerHTML = '';
           if (!outEntries.length) {
-            outList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Personne n\'accède à votre planning.</div>';
+            outList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Personne n\'accède encore à votre planning.</div>';
           } else {
             outEntries.forEach(e => {
               const row = _shareRow(
                 e.name, e.active,
                 () => suspendShareOutbound(e.uid),
                 () => resumeShareOutbound(e.uid),
-                () => { if(confirm(`Révoquer l'accès de ${e.name} à votre planning ?`)) revokeShare(e.uid); }
+                () => { if(confirm(`Révoquer l'accès de « ${e.name} » à votre planning ?`)) revokeShare(e.uid); }
               );
               outList.appendChild(row);
             });
           }
 
-          // INBOUND : quels plannings je vois ?
-          // => entrées dans allData[_authUid]
+          // INBOUND
           inList.innerHTML = '';
-          const myConns = allData[_authUid] || {};
-          const inEntries = Object.entries(myConns).map(([uid, info]) => ({ uid, ...info }))
-            .filter(e => e.uid !== _authUid && e.name !== undefined);
-
           if (!inEntries.length) {
             inList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Aucun planning partagé avec vous.</div>';
           } else {
             inEntries.forEach(e => {
               const row = _shareRow(
-                e.name, e.active === true,
+                e.name, e.active,
                 () => suspendShareInbound(e.uid),
                 () => resumeShareInbound(e.uid),
-                () => { if(confirm(`Révoquer complètement le partage avec ${e.name} ?`)) revokeShare(e.uid); }
+                () => { if(confirm(`Révoquer complètement le partage avec « ${e.name} » ?`)) revokeShare(e.uid); }
               );
               inList.appendChild(row);
             });
           }
+
         } catch(err) {
+          console.error('_loadShareActiveList error', err);
           if (outList) outList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Erreur de chargement.</div>';
           if (inList)  inList.innerHTML  = '';
         }
