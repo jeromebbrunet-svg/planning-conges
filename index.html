@@ -2798,9 +2798,7 @@
         a.click(); URL.revokeObjectURL(a.href);
       }
 
-      // Wire save modal buttons (script runs after DOM elements)
-      document.getElementById('save-current-btn')?.addEventListener('click', doSaveCurrent);
-      document.getElementById('save-all-btn')?.addEventListener('click', doSaveAll);
+      // Wire modal backdrop clicks only (save buttons use onclick in HTML)
       document.getElementById('save-modal')?.addEventListener('click', e => { if(e.target === document.getElementById('save-modal')) closeSaveModal(); });
       document.getElementById('import-modal')?.addEventListener('click', e => { if(e.target === document.getElementById('import-modal')) closeImportModal(); });
 
