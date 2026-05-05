@@ -3187,6 +3187,7 @@
         // Shared users
         let hasShared = false;
         for (const [uid, sd] of Object.entries(_sharedCache)) {
+          if (uid === _authUid) continue; // exclure son propre uid
           if (!sd.users || !sd.users.length) continue;
           if (!hasShared) {
             const hdr = document.createElement('div');
@@ -3258,7 +3259,8 @@
 
         if (mode === 'shared') {
           const rows = [];
-          for (const [, sd] of Object.entries(_sharedCache)) {
+          for (const [uid, sd] of Object.entries(_sharedCache)) {
+            if (uid === _authUid) continue;
             (sd.users || []).forEach(u => {
               const yd = (u.data?.yearData || {})[currentYear] || {};
               rows.push({ name: u.name + ' ✦', color: u.color || '#666', calendarData: yd.calendarData || {} });
@@ -3273,7 +3275,8 @@
             const yd = (d.yearData || {})[currentYear] || {};
             return { name: u.name, color: u.color, calendarData: yd.calendarData || {} };
           });
-          for (const [, sd] of Object.entries(_sharedCache)) {
+          for (const [uid, sd] of Object.entries(_sharedCache)) {
+            if (uid === _authUid) continue;
             (sd.users || []).forEach(u => {
               const yd = (u.data?.yearData || {})[currentYear] || {};
               rows.push({ name: u.name + ' ✦', color: u.color || '#666', calendarData: yd.calendarData || {} });
@@ -3836,8 +3839,9 @@
           sel.appendChild(opt);
         });
 
-        // Collègues partagés
+        // Collègues partagés (jamais soi-même)
         for (const [uid, sd] of Object.entries(_sharedCache)) {
+          if (uid === _authUid) continue; // sécurité : exclure son propre uid
           if (sd.users && sd.users.length) {
             // Si le collègue a plusieurs utilisateurs, on propose chacun
             sd.users.forEach((u, idx) => {
@@ -3914,6 +3918,8 @@
           if (!data) return;
           for (const [uid, info] of Object.entries(data)) {
             if (!info.active) continue;
+            // Ne jamais s'abonner à son propre nœud public (partage mutuel)
+            if (uid === _authUid) continue;
             _subscribeSharedUser(uid, info.name);
           }
         } catch(e) { console.warn('_loadSharedForCompare error', e); }
@@ -4306,11 +4312,58 @@
         await _loadSharedForCompare();
       }
 
+      // ── Gestion fine des accès partagés ─────────────────────────────────
+      // "outbound" = je partage MON planning vers targetUid (ils me voient)
+      // "inbound"  = je vois LE planning de targetUid (ils me partagent)
+
+      async function suspendShareOutbound(targetUid) {
+        await set(ref(db, `${FB_V}_shared/${targetUid}/${_authUid}/active`), false);
+        await _conditionalUnpublish();
+        _loadShareActiveList();
+      }
+
+      async function resumeShareOutbound(targetUid) {
+        await set(ref(db, `${FB_V}_shared/${targetUid}/${_authUid}/active`), true);
+        _publishSharedData();
+        _loadShareActiveList();
+      }
+
+      async function suspendShareInbound(targetUid) {
+        await set(ref(db, `${FB_V}_shared/${_authUid}/${targetUid}/active`), false);
+        delete _sharedCache[targetUid];
+        refreshCompareSelect();
+        _loadShareActiveList();
+      }
+
+      async function resumeShareInbound(targetUid) {
+        await set(ref(db, `${FB_V}_shared/${_authUid}/${targetUid}/active`), true);
+        const snap = await get(ref(db, `${FB_V}_shared/${_authUid}/${targetUid}`));
+        const info = snap.val();
+        if (info if (info && uid !== _authUid) _subscribeSharedUser(targetUid, info.name);if (info && uid !== _authUid) _subscribeSharedUser(targetUid, info.name); targetUid !== _authUid) _subscribeSharedUser(targetUid, info.name);
+        _loadShareActiveList();
+      }
+
       async function revokeShare(targetUid) {
+        // Révoque les deux sens
         await set(ref(db, `${FB_V}_shared/${_authUid}/${targetUid}/active`), false);
         await set(ref(db, `${FB_V}_shared/${targetUid}/${_authUid}/active`), false);
         delete _sharedCache[targetUid];
+        await _conditionalUnpublish();
         refreshCompareSelect();
+        _loadShareActiveList();
+      }
+
+      async function _conditionalUnpublish() {
+        try {
+          const snap = await get(ref(db, `${FB_V}_shared`));
+          const all = snap.val() || {};
+          const stillActive = Object.entries(all).some(([uid, conns]) =>
+            uid !== _authUid && conns[_authUid]?.active === true
+          );
+          if (!stillActive) {
+            await set(ref(db, `${FB_V}_pub/${_authUid}`), null);
+          }
+        } catch(e) {}
       }
 
       // ── Modal Partage ─────────────────────────────────────────────────
@@ -4358,12 +4411,20 @@
                   <div id="share-redeem-msg" style="font-size:12px;margin-top:8px;display:none;"></div>
                 </div>
 
-                <!-- Collègues partagés -->
+                <!-- Gestion des accès -->
                 <div>
+                  <!-- Je partage vers -->
                   <div style="font-size:12px;font-weight:600;color:var(--text-secondary);
-                    text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">
-                    Accès actifs</div>
-                  <div id="share-active-list" style="display:flex;flex-direction:column;gap:6px;">
+                    text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">
+                    Mon planning visible par</div>
+                  <div id="share-outbound-list" style="display:flex;flex-direction:column;gap:5px;margin-bottom:18px;">
+                    <div style="font-size:12px;color:var(--text-muted);">Chargement…</div>
+                  </div>
+                  <!-- Je vois -->
+                  <div style="font-size:12px;font-weight:600;color:var(--text-secondary);
+                    text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">
+                    Plannings que je consulte</div>
+                  <div id="share-inbound-list" style="display:flex;flex-direction:column;gap:5px;">
                     <div style="font-size:12px;color:var(--text-muted);">Chargement…</div>
                   </div>
                 </div>
@@ -4418,27 +4479,101 @@
         }
       }
 
+      function _shareRow(name, isActive, onSuspend, onResume, onRevoke) {
+        const row = document.createElement('div');
+        row.style.cssText = `display:flex;align-items:center;gap:8px;padding:9px 12px;
+          background:var(--bg);border-radius:8px;border:1px solid ${isActive ? 'var(--border)' : 'var(--border-soft)'};
+          opacity:${isActive ? '1' : '0.65'};`;
+
+        const dot = document.createElement('div');
+        dot.style.cssText = `width:7px;height:7px;border-radius:50%;flex-shrink:0;
+          background:${isActive ? '#1A7A4A' : 'var(--text-muted)'};`;
+
+        const nm = document.createElement('span');
+        nm.textContent = name;
+        nm.style.cssText = 'font-size:13px;font-weight:500;color:var(--text-primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+
+        const btnSusp = document.createElement('button');
+        btnSusp.textContent = isActive ? 'Suspendre' : 'Réactiver';
+        btnSusp.style.cssText = `background:none;border:1px solid var(--border);border-radius:6px;
+          padding:4px 9px;font-size:11px;color:var(--text-muted);cursor:pointer;white-space:nowrap;flex-shrink:0;`;
+        btnSusp.onmouseover = () => { btnSusp.style.background = 'var(--accent-light)'; btnSusp.style.color = 'var(--accent)'; };
+        btnSusp.onmouseout  = () => { btnSusp.style.background = 'none'; btnSusp.style.color = 'var(--text-muted)'; };
+        btnSusp.onclick = isActive ? onSuspend : onResume;
+
+        const btnRev = document.createElement('button');
+        btnRev.textContent = 'Révoquer';
+        btnRev.style.cssText = `background:none;border:1px solid #FECACA;border-radius:6px;
+          padding:4px 9px;font-size:11px;color:#C0392B;cursor:pointer;white-space:nowrap;flex-shrink:0;`;
+        btnRev.onmouseover = () => { btnRev.style.background = '#FEF2F2'; };
+        btnRev.onmouseout  = () => { btnRev.style.background = 'none'; };
+        btnRev.onclick = onRevoke;
+
+        row.appendChild(dot); row.appendChild(nm); row.appendChild(btnSusp); row.appendChild(btnRev);
+        return row;
+      }
+
       async function _loadShareActiveList() {
-        const list = document.getElementById('share-active-list');
-        if (!list) return;
+        const outList = document.getElementById('share-outbound-list');
+        const inList  = document.getElementById('share-inbound-list');
+        if (!outList || !inList) return;
+
         try {
-          const snap = await get(ref(db, `${FB_V}_shared/${_authUid}`));
-          const data = snap.val();
-          const active = data ? Object.entries(data).filter(([,v]) => v.active) : [];
-          if (!active.length) {
-            list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Aucun partage actif.</div>';
-            return;
+          // Récupérer tout le nœud _shared pour trouver les deux sens
+          const snapAll = await get(ref(db, `${FB_V}_shared`));
+          const allData = snapAll.val() || {};
+
+          // OUTBOUND : qui peut voir mon planning ?
+          // => entrées dans allData[targetUid][_authUid]
+          outList.innerHTML = '';
+          const outEntries = [];
+          for (const [targetUid, conns] of Object.entries(allData)) {
+            if (targetUid === _authUid) continue;
+            const conn = conns[_authUid];
+            if (conn && conn.name !== undefined) {
+              // conn.name = mon nom vu par eux; on veut le nom du targetUid
+              // Chercher leur nom dans allData[_authUid][targetUid]
+              const theirName = allData[_authUid]?.[targetUid]?.name || conn.name || targetUid;
+              outEntries.push({ uid: targetUid, name: theirName, active: conn.active === true });
+            }
           }
-          list.innerHTML = active.map(([uid, info]) => `
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;
-              padding:8px 12px;background:var(--bg);border-radius:8px;border:1px solid var(--border);">
-              <div style="font-size:13px;font-weight:600;color:var(--text-primary);">${info.name}</div>
-              <button onclick="revokeShare('${uid}')" style="background:none;border:1px solid var(--border);
-                border-radius:6px;padding:5px 10px;font-size:11px;color:var(--text-muted);cursor:pointer;">
-                Révoquer</button>
-            </div>`).join('');
-        } catch(e) {
-          list.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Erreur de chargement.</div>';
+          if (!outEntries.length) {
+            outList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Personne n\'accède à votre planning.</div>';
+          } else {
+            outEntries.forEach(e => {
+              const row = _shareRow(
+                e.name, e.active,
+                () => suspendShareOutbound(e.uid),
+                () => resumeShareOutbound(e.uid),
+                () => { if(confirm(`Révoquer l'accès de ${e.name} à votre planning ?`)) revokeShare(e.uid); }
+              );
+              outList.appendChild(row);
+            });
+          }
+
+          // INBOUND : quels plannings je vois ?
+          // => entrées dans allData[_authUid]
+          inList.innerHTML = '';
+          const myConns = allData[_authUid] || {};
+          const inEntries = Object.entries(myConns).map(([uid, info]) => ({ uid, ...info }))
+            .filter(e => e.uid !== _authUid && e.name !== undefined);
+
+          if (!inEntries.length) {
+            inList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Aucun planning partagé avec vous.</div>';
+          } else {
+            inEntries.forEach(e => {
+              const row = _shareRow(
+                e.name, e.active === true,
+                () => suspendShareInbound(e.uid),
+                () => resumeShareInbound(e.uid),
+                () => { if(confirm(`Révoquer complètement le partage avec ${e.name} ?`)) revokeShare(e.uid); }
+              );
+              inList.appendChild(row);
+            });
+          }
+        } catch(err) {
+          if (outList) outList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Erreur de chargement.</div>';
+          if (inList)  inList.innerHTML  = '';
         }
       }
 
@@ -4482,6 +4617,7 @@
         authTab, doLogin, doSignup, doForgot, authSignOut,
         openAccountModal, closeAccountModal, doChangePwd, doSendReset,
         openShareModal, closeShareModal, doGenCode, doRedeemCode, revokeShare,
+        suspendShareOutbound, resumeShareOutbound, suspendShareInbound, resumeShareInbound,
       });
     </script>
     <!-- ══ MODALE SAUVEGARDE ══ -->
