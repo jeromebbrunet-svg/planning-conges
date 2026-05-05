@@ -1821,11 +1821,24 @@
         if (!_authUid) return;
         try {
           await set(ref(db, fbMyRoot()), { users });
+          // Publier aussi dans le nœud public si des partages sont actifs
+          _publishSharedData();
           setLocalBackup();
         } catch(e) {
           console.warn('Firebase write failed, using localStorage fallback', e);
           setLocalBackup();
         }
+      }
+
+      async function _publishSharedData() {
+        try {
+          const snap = await get(ref(db, `${FB_V}_shared/${_authUid}`));
+          const data = snap.val();
+          const hasActive = data && Object.values(data).some(v => v.active);
+          if (hasActive) {
+            await set(ref(db, `${FB_V}_pub/${_authUid}`), { users });
+          }
+        } catch(e) {}
       }
 
       // ── Préférences locales (utilisateur sélectionné, année, comparaison) ──
@@ -3693,15 +3706,16 @@
           for (const [uid, info] of Object.entries(data)) {
             if (!info.active) continue;
             try {
-              const ds = await get(ref(db, `${FB_V}/${uid}`));
+              // Lire depuis le nœud public (planning_v3_pub) accessible en lecture
+              const ds = await get(ref(db, `${FB_V}_pub/${uid}`));
               const d  = ds.val();
               if (d && Array.isArray(d.users)) {
                 _sharedCache[uid] = { users: d.users, name: info.name, selectedIdx: 0 };
               }
-            } catch(e) {}
+            } catch(e) { console.warn('Cannot read shared user', uid, e); }
           }
           refreshCompareSelect();
-        } catch(e) {}
+        } catch(e) { console.warn('_loadSharedForCompare error', e); }
       }
 
       function applyCompareOverlay() {
@@ -4209,8 +4223,11 @@
       onAuthStateChanged(auth, async user => {
         if (user) {
           _authUid = user.uid;
-          document.getElementById('auth-screen')?.remove();
+          // Masquer immédiatement l'écran de connexion
+          const as = document.getElementById('auth-screen');
+          if (as) as.style.display = 'none';
           await bootApp();
+          document.getElementById('auth-screen')?.remove();
         } else {
           _authUid = null;
           stopRemoteListener();
