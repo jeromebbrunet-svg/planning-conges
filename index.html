@@ -3141,7 +3141,11 @@
         } else { handleDayClick(dateStr,dayDiv); }
       },true);
 
-      function applyBgUrl(){ const url=document.getElementById('bg-url-input').value.trim(); if(url){currentBgUrl=url;applyBg(url);saveCurrentUserData();} }
+      function applyBgUrl(){
+        const url=document.getElementById('bg-url-input').value.trim();
+        if(url){ currentBgUrl=url; applyBg(url); saveCurrentUserData(); }
+        else { clearBg(); }
+      }
 
       function applyBg(src){
         const bg=document.getElementById('bg-image');
@@ -4748,7 +4752,7 @@
         toggleTheme, toggleUserDropdown, closeUserDropdown, filterUsers, addUser,
         selectZone, changeYear, saveData, closeSaveModal, doSaveCurrent, doSaveAll,
         closeImportModal, importFromFile, exportPDF, toggleSwapMode,
-        applyBg, clearBg, updateBgOpacity, updateMonthOpacity,
+        applyBg, applyBgUrl, clearBg, updateBgOpacity, updateMonthOpacity, showSvgWallpaper,
         startRename, openGanttModal, closeGanttModal, printGantt, confirmZonePicker,
         syncUserModeLabels, _zpRefreshUserPicker,
         toggleSidebar, selectTool, toggleMobileMode, mobileNavMonth,
