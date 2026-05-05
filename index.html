@@ -135,6 +135,30 @@
       }
       body.has-bg #bg-image { opacity: 1; }
 
+      /* ── SVG wallpaper fallback (quand aucune image utilisateur) ── */
+      #bg-svg-wallpaper {
+        position: fixed; inset: 0;
+        width: 100%; height: 100%;
+        opacity: 0;
+        transition: opacity 0.5s;
+        pointer-events: none;
+        z-index: 0;
+        overflow: hidden;
+      }
+      #bg-svg-wallpaper svg {
+        width: 100%; height: 100%;
+        display: block;
+        /* Preserve viewBox aspect while covering the whole viewport */
+        preserveAspectRatio: xMidYMid slice;
+      }
+      body.has-svg-bg #bg-svg-wallpaper { opacity: 1; }
+
+      /* Theme switching: show only the relevant SVG group */
+      #bg-svg-wallpaper .svg-light { display: block; }
+      #bg-svg-wallpaper .svg-dark  { display: none;  }
+      :root[data-theme="dark"] #bg-svg-wallpaper .svg-light { display: none;  }
+      :root[data-theme="dark"] #bg-svg-wallpaper .svg-dark  { display: block; }
+
       /* ── Layout ── */
       .app-shell {
         display: grid;
@@ -962,6 +986,7 @@
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         body { background: white !important; padding: 0; margin: 0; font-size: 9px; }
         #bg-image { display: none !important; }
+        #bg-svg-wallpaper { display: none !important; }
         .app-shell { display: block; }
         .sidebar { display: none; }
         .main { padding: 0; }
@@ -1272,6 +1297,110 @@
     </style>
   </head>
   <body>
+    <!-- ── SVG wallpaper fallback (affiché quand aucune image utilisateur) ── -->
+    <div id="bg-svg-wallpaper" aria-hidden="true">
+      <svg width="100%" height="100%" viewBox="0 0 690 490" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="wbg-l" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#F2F3F5"/>
+            <stop offset="100%" stop-color="#E6EAF0"/>
+          </linearGradient>
+          <linearGradient id="wbg-d" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#13151c"/>
+            <stop offset="100%" stop-color="#0d1018"/>
+          </linearGradient>
+          <linearGradient id="wf1-l" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stop-color="#c8d2de" stop-opacity="0.72"/>
+            <stop offset="100%" stop-color="#c8d2de" stop-opacity="0.04"/>
+          </linearGradient>
+          <linearGradient id="wf2-l" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stop-color="#b8c6d4" stop-opacity="0.62"/>
+            <stop offset="100%" stop-color="#b8c6d4" stop-opacity="0.04"/>
+          </linearGradient>
+          <linearGradient id="wf3-l" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stop-color="#d4dae4" stop-opacity="0.65"/>
+            <stop offset="100%" stop-color="#d4dae4" stop-opacity="0.04"/>
+          </linearGradient>
+          <linearGradient id="wf4-l" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stop-color="#aabccc" stop-opacity="0.55"/>
+            <stop offset="100%" stop-color="#aabccc" stop-opacity="0.03"/>
+          </linearGradient>
+          <linearGradient id="wf5-l" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stop-color="#dce0e8" stop-opacity="0.68"/>
+            <stop offset="100%" stop-color="#dce0e8" stop-opacity="0.04"/>
+          </linearGradient>
+          <linearGradient id="wf6-l" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stop-color="#a0b4c6" stop-opacity="0.42"/>
+            <stop offset="100%" stop-color="#a0b4c6" stop-opacity="0.02"/>
+          </linearGradient>
+          <linearGradient id="wf1-d" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stop-color="#2a3448" stop-opacity="0.88"/>
+            <stop offset="100%" stop-color="#2a3448" stop-opacity="0.05"/>
+          </linearGradient>
+          <linearGradient id="wf2-d" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stop-color="#1e2c40" stop-opacity="0.75"/>
+            <stop offset="100%" stop-color="#1e2c40" stop-opacity="0.04"/>
+          </linearGradient>
+          <linearGradient id="wf3-d" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stop-color="#303c52" stop-opacity="0.82"/>
+            <stop offset="100%" stop-color="#303c52" stop-opacity="0.04"/>
+          </linearGradient>
+          <linearGradient id="wf4-d" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stop-color="#18263a" stop-opacity="0.7"/>
+            <stop offset="100%" stop-color="#18263a" stop-opacity="0.03"/>
+          </linearGradient>
+          <linearGradient id="wf5-d" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stop-color="#38424e" stop-opacity="0.8"/>
+            <stop offset="100%" stop-color="#38424e" stop-opacity="0.04"/>
+          </linearGradient>
+          <linearGradient id="wf6-d" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stop-color="#162030" stop-opacity="0.58"/>
+            <stop offset="100%" stop-color="#162030" stop-opacity="0.02"/>
+          </linearGradient>
+        </defs>
+
+        <!-- LIGHT group -->
+        <g class="svg-light">
+          <rect width="690" height="490" fill="url(#wbg-l)"/>
+          <path d="M0,480 C180,-60 420,-120 680,-180 L680,-260 C420,-200 180,-130 0,480 Z" fill="url(#wf6-l)"/>
+          <path d="M0,480 C170,-10 400,-60 680,-100 L680,-180 C420,-120 180,-60 0,480 Z" fill="url(#wf4-l)"/>
+          <path d="M0,480 C160,50 390,10 680,-20 L680,-100 C400,-60 170,-10 0,480 Z" fill="url(#wf2-l)"/>
+          <path d="M0,480 C150,110 370,90 680,60 L680,-20 C390,10 160,50 0,480 Z" fill="url(#wf1-l)"/>
+          <path d="M0,480 C140,170 360,170 680,150 L680,60 C370,90 150,110 0,480 Z" fill="url(#wf3-l)"/>
+          <path d="M0,480 C130,240 340,250 680,240 L680,150 C360,170 140,170 0,480 Z" fill="url(#wf2-l)"/>
+          <path d="M0,480 C120,310 320,330 680,330 L680,240 C340,250 130,240 0,480 Z" fill="url(#wf5-l)"/>
+          <path d="M0,480 C110,380 300,400 680,420 L680,330 C320,330 120,310 0,480 Z" fill="url(#wf6-l)"/>
+          <path d="M0,480 C180,-60 420,-120 680,-180" fill="none" stroke="#9aaabb" stroke-opacity="0.2" stroke-width="0.5"/>
+          <path d="M0,480 C170,-10 400,-60 680,-100" fill="none" stroke="#9aaabb" stroke-opacity="0.2" stroke-width="0.5"/>
+          <path d="M0,480 C160,50 390,10 680,-20" fill="none" stroke="#9aaabb" stroke-opacity="0.22" stroke-width="0.5"/>
+          <path d="M0,480 C150,110 370,90 680,60" fill="none" stroke="#9aaabb" stroke-opacity="0.22" stroke-width="0.5"/>
+          <path d="M0,480 C140,170 360,170 680,150" fill="none" stroke="#9aaabb" stroke-opacity="0.2" stroke-width="0.5"/>
+          <path d="M0,480 C130,240 340,250 680,240" fill="none" stroke="#9aaabb" stroke-opacity="0.2" stroke-width="0.5"/>
+          <path d="M0,480 C120,310 320,330 680,330" fill="none" stroke="#9aaabb" stroke-opacity="0.18" stroke-width="0.5"/>
+        </g>
+
+        <!-- DARK group -->
+        <g class="svg-dark">
+          <rect width="690" height="490" fill="url(#wbg-d)"/>
+          <path d="M0,480 C180,-60 420,-120 680,-180 L680,-260 C420,-200 180,-130 0,480 Z" fill="url(#wf6-d)"/>
+          <path d="M0,480 C170,-10 400,-60 680,-100 L680,-180 C420,-120 180,-60 0,480 Z" fill="url(#wf4-d)"/>
+          <path d="M0,480 C160,50 390,10 680,-20 L680,-100 C400,-60 170,-10 0,480 Z" fill="url(#wf2-d)"/>
+          <path d="M0,480 C150,110 370,90 680,60 L680,-20 C390,10 160,50 0,480 Z" fill="url(#wf1-d)"/>
+          <path d="M0,480 C140,170 360,170 680,150 L680,60 C370,90 150,110 0,480 Z" fill="url(#wf3-d)"/>
+          <path d="M0,480 C130,240 340,250 680,240 L680,150 C360,170 140,170 0,480 Z" fill="url(#wf2-d)"/>
+          <path d="M0,480 C120,310 320,330 680,330 L680,240 C340,250 130,240 0,480 Z" fill="url(#wf5-d)"/>
+          <path d="M0,480 C110,380 300,400 680,420 L680,330 C320,330 120,310 0,480 Z" fill="url(#wf6-d)"/>
+          <path d="M0,480 C180,-60 420,-120 680,-180" fill="none" stroke="#3a4a5c" stroke-opacity="0.38" stroke-width="0.5"/>
+          <path d="M0,480 C170,-10 400,-60 680,-100" fill="none" stroke="#3a4a5c" stroke-opacity="0.38" stroke-width="0.5"/>
+          <path d="M0,480 C160,50 390,10 680,-20" fill="none" stroke="#3a4a5c" stroke-opacity="0.38" stroke-width="0.5"/>
+          <path d="M0,480 C150,110 370,90 680,60" fill="none" stroke="#3a4a5c" stroke-opacity="0.38" stroke-width="0.5"/>
+          <path d="M0,480 C140,170 360,170 680,150" fill="none" stroke="#3a4a5c" stroke-opacity="0.35" stroke-width="0.5"/>
+          <path d="M0,480 C130,240 340,250 680,240" fill="none" stroke="#3a4a5c" stroke-opacity="0.35" stroke-width="0.5"/>
+          <path d="M0,480 C120,310 320,330 680,330" fill="none" stroke="#3a4a5c" stroke-opacity="0.3" stroke-width="0.5"/>
+        </g>
+      </svg>
+    </div>
+
     <div id="bg-image"></div>
 
     <div class="app-shell" id="app-shell">
@@ -2074,6 +2203,7 @@
           const bg = document.getElementById('bg-image');
           bg.style.backgroundImage = ''; bg.style.opacity = 0;
           document.body.classList.remove('has-bg');
+          showSvgWallpaper();
         }
         updateUserUI();
         createCalendar();
@@ -3018,7 +3148,12 @@
         bg.style.backgroundImage=`url('${src}')`;
         bg.style.opacity=document.getElementById('bg-opacity').value/100;
         document.body.classList.add('has-bg');
+        document.body.classList.remove('has-svg-bg');
         updateMonthOpacity(document.getElementById('month-opacity').value);
+      }
+
+      function showSvgWallpaper(){
+        document.body.classList.add('has-svg-bg');
       }
 
       function clearBg(){
@@ -3032,6 +3167,7 @@
           el.style.background = el.classList.contains('tint-curr') ? 'var(--tint-curr-bg)' : 'var(--tint-prev-bg)';
         });
         document.querySelector('.sidebar').style.background='';
+        showSvgWallpaper();
         saveCurrentUserData();// fire-and-forget ok
       }
 
@@ -4604,6 +4740,8 @@
 
       // ── Init ──────────────────────────────────────────────────────────
       initUsersFromStorage(); // no-op, boot piloté par onAuthStateChanged
+      // Afficher le fond SVG par défaut dès le démarrage
+      document.body.classList.add('has-svg-bg');
 
       // Expose functions to global scope (required because script is type="module")
       Object.assign(window, {
