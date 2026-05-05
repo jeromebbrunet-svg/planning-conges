@@ -3695,6 +3695,8 @@
         return yd.calendarData || {};
       }
 
+      const _sharedListeners = {};  // uid → unsubscribe fn
+
       async function _loadSharedForCompare() {
         if (!_authUid) return;
         try {
@@ -3703,17 +3705,33 @@
           if (!data) return;
           for (const [uid, info] of Object.entries(data)) {
             if (!info.active) continue;
-            try {
-              // Lire depuis le nœud public (planning_v3_pub) accessible en lecture
-              const ds = await get(ref(db, `${FB_V}_pub/${uid}`));
-              const d  = ds.val();
-              if (d && Array.isArray(d.users)) {
-                _sharedCache[uid] = { users: d.users, name: info.name, selectedIdx: 0 };
-              }
-            } catch(e) { console.warn('Cannot read shared user', uid, e); }
+            _subscribeSharedUser(uid, info.name);
           }
-          refreshCompareSelect();
         } catch(e) { console.warn('_loadSharedForCompare error', e); }
+      }
+
+      function _subscribeSharedUser(uid, name) {
+        // Éviter les doublons
+        if (_sharedListeners[uid]) return;
+        // Écoute temps réel sur le nœud public du collègue
+        const unsub = onValue(ref(db, `${FB_V}_pub/${uid}`), snap => {
+          const d = snap.val();
+          if (d && Array.isArray(d.users)) {
+            _sharedCache[uid] = { users: d.users, name, selectedIdx: 0 };
+            refreshCompareSelect();
+            // Si ce collègue est actuellement comparé, rafraîchir l'affichage
+            if (compareUserId && compareUserId.startsWith(`shared:${uid}`)) {
+              applyCompareOverlay();
+              _refreshUserBars();
+            }
+          }
+        });
+        _sharedListeners[uid] = unsub;
+      }
+
+      function _unsubscribeAllShared() {
+        for (const unsub of Object.values(_sharedListeners)) unsub();
+        Object.keys(_sharedListeners).forEach(k => delete _sharedListeners[k]);
       }
 
       function applyCompareOverlay() {
@@ -3967,6 +3985,7 @@
 
       async function authSignOut() {
         stopRemoteListener();
+        _unsubscribeAllShared();
         users = []; currentUserId = null; compareUserId = null; yearData = {};
         _authUid = null;
         await signOut(auth);
