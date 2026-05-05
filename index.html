@@ -4339,7 +4339,7 @@
         await set(ref(db, `${FB_V}_shared/${_authUid}/${targetUid}/active`), true);
         const snap = await get(ref(db, `${FB_V}_shared/${_authUid}/${targetUid}`));
         const info = snap.val();
-        if (info if (info && uid !== _authUid) _subscribeSharedUser(targetUid, info.name);if (info && uid !== _authUid) _subscribeSharedUser(targetUid, info.name); targetUid !== _authUid) _subscribeSharedUser(targetUid, info.name);
+        if (info && targetUid !== _authUid) _subscribeSharedUser(targetUid, info.name);
         _loadShareActiveList();
       }
 
