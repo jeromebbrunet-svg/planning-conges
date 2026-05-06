@@ -1119,7 +1119,7 @@
         gap: 8px;
         margin: 12px 14px 0;
       }
-      body.mobile-mode #mobile-counters { display: flex !important; }
+      body.mobile-mode #mobile-counters { display: none !important; }
       body.mobile-mode .print-counters-row, body.mobile-mode .print-legend { display: none !important; }
 
       /* Bottom toolbar */
@@ -4163,8 +4163,17 @@
           const lblA = absA ? (TYPE_LABELS[absA.type] || absA.type) : '—';
           const lblB = absB ? (TYPE_LABELS[absB.type] || absB.type) : '—';
           const uA = currentUser()?.name || 'Moi';
-          const uB = users.find(u => u.id === compareUserId)?.name || '?';
-          dayDiv.title = `${uA} : ${lblA}\n${uB} : ${lblB}`;
+          let uBName = '?';
+          if (compareUserId && compareUserId.startsWith('shared:')) {
+            const parts = compareUserId.split(':');
+            const uid = parts[1];
+            const idx = parseInt(parts[2] ?? '0', 10);
+            const sd = _sharedCache[uid];
+            uBName = sd?.users?.[idx]?.name || sd?.name || '?';
+          } else {
+            uBName = users.find(u => u.id === compareUserId)?.name || '?';
+          }
+          dayDiv.title = `${uA} : ${lblA}\n${uBName} : ${lblB}`;
         });
       }
 
@@ -4554,20 +4563,12 @@
                   <div id="share-redeem-msg" style="font-size:12px;margin-top:8px;display:none;"></div>
                 </div>
 
-                <!-- Gestion des accès -->
+                <!-- Gestion des accès — liste unifiée par collègue -->
                 <div>
-                  <!-- Je partage vers -->
                   <div style="font-size:12px;font-weight:600;color:var(--text-secondary);
                     text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">
-                    Mon planning visible par</div>
-                  <div id="share-outbound-list" style="display:flex;flex-direction:column;gap:5px;margin-bottom:18px;">
-                    <div style="font-size:12px;color:var(--text-muted);">Chargement…</div>
-                  </div>
-                  <!-- Je vois -->
-                  <div style="font-size:12px;font-weight:600;color:var(--text-secondary);
-                    text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">
-                    Plannings que je consulte</div>
-                  <div id="share-inbound-list" style="display:flex;flex-direction:column;gap:5px;">
+                    Mes collègues connectés</div>
+                  <div id="share-unified-list" style="display:flex;flex-direction:column;gap:6px;">
                     <div style="font-size:12px;color:var(--text-muted);">Chargement…</div>
                   </div>
                 </div>
@@ -4622,104 +4623,144 @@
         }
       }
 
-      function _shareRow(name, isActive, onSuspend, onResume, onRevoke) {
-        const row = document.createElement('div');
-        row.style.cssText = `display:flex;align-items:center;gap:8px;padding:9px 12px;
-          background:var(--bg);border-radius:8px;border:1px solid ${isActive ? 'var(--border)' : 'var(--border-soft)'};
-          opacity:${isActive ? '1' : '0.65'};`;
-
-        const dot = document.createElement('div');
-        dot.style.cssText = `width:7px;height:7px;border-radius:50%;flex-shrink:0;
-          background:${isActive ? '#1A7A4A' : 'var(--text-muted)'};`;
-
-        const nm = document.createElement('span');
-        nm.textContent = name;
-        nm.style.cssText = 'font-size:13px;font-weight:500;color:var(--text-primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-
-        const btnSusp = document.createElement('button');
-        btnSusp.textContent = isActive ? 'Suspendre' : 'Réactiver';
-        btnSusp.style.cssText = `background:none;border:1px solid var(--border);border-radius:6px;
-          padding:4px 9px;font-size:11px;color:var(--text-muted);cursor:pointer;white-space:nowrap;flex-shrink:0;`;
-        btnSusp.onmouseover = () => { btnSusp.style.background = 'var(--accent-light)'; btnSusp.style.color = 'var(--accent)'; };
-        btnSusp.onmouseout  = () => { btnSusp.style.background = 'none'; btnSusp.style.color = 'var(--text-muted)'; };
-        btnSusp.onclick = isActive ? onSuspend : onResume;
-
-        const btnRev = document.createElement('button');
-        btnRev.textContent = 'Révoquer';
-        btnRev.style.cssText = `background:none;border:1px solid #FECACA;border-radius:6px;
-          padding:4px 9px;font-size:11px;color:#C0392B;cursor:pointer;white-space:nowrap;flex-shrink:0;`;
-        btnRev.onmouseover = () => { btnRev.style.background = '#FEF2F2'; };
-        btnRev.onmouseout  = () => { btnRev.style.background = 'none'; };
-        btnRev.onclick = onRevoke;
-
-        row.appendChild(dot); row.appendChild(nm); row.appendChild(btnSusp); row.appendChild(btnRev);
-        return row;
-      }
+      // _shareRow remplacée par _shareRowUnified ci-dessous
 
       async function _loadShareActiveList() {
-        const outList = document.getElementById('share-outbound-list');
-        const inList  = document.getElementById('share-inbound-list');
-        if (!outList || !inList) return;
+        const unifiedList = document.getElementById('share-unified-list');
+        if (!unifiedList) return;
 
-        outList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Chargement…</div>';
-        inList.innerHTML  = '<div style="font-size:12px;color:var(--text-muted);">Chargement…</div>';
+        unifiedList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Chargement…</div>';
 
         try {
-          // On ne lit QUE notre propre nœud — toujours autorisé par les règles Firebase
           const snap = await get(ref(db, `${FB_V}_shared/${_authUid}`));
           const myConns = snap.val() || {};
 
-          const outEntries = [];
-          const inEntries  = [];
-
+          // Regrouper par uid de collègue
+          const colleagues = {};
           for (const [uid, info] of Object.entries(myConns)) {
             if (!info || info.name === undefined) continue;
-            const entry = { uid, name: info.name, active: info.active === true };
+            if (!colleagues[uid]) colleagues[uid] = { uid, name: info.name, outActive: null, inActive: null };
             if (info.direction === 'out') {
-              outEntries.push(entry);
+              colleagues[uid].outActive = info.active === true;
             } else {
-              // 'in' ou pas de direction (rétrocompat) → inbound
-              inEntries.push(entry);
+              // 'in' ou rétrocompat
+              colleagues[uid].inActive = info.active === true;
             }
           }
 
-          // OUTBOUND
-          outList.innerHTML = '';
-          if (!outEntries.length) {
-            outList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Personne n\'accède encore à votre planning.</div>';
-          } else {
-            outEntries.forEach(e => {
-              const row = _shareRow(
-                e.name, e.active,
-                () => suspendShareOutbound(e.uid),
-                () => resumeShareOutbound(e.uid),
-                () => { if(confirm(`Révoquer l'accès de « ${e.name} » à votre planning ?`)) revokeShare(e.uid); }
-              );
-              outList.appendChild(row);
-            });
+          unifiedList.innerHTML = '';
+          const entries = Object.values(colleagues);
+
+          if (!entries.length) {
+            unifiedList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Aucun partage établi pour l\'instant.</div>';
+            return;
           }
 
-          // INBOUND
-          inList.innerHTML = '';
-          if (!inEntries.length) {
-            inList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Aucun planning partagé avec vous.</div>';
-          } else {
-            inEntries.forEach(e => {
-              const row = _shareRow(
-                e.name, e.active,
-                () => suspendShareInbound(e.uid),
-                () => resumeShareInbound(e.uid),
-                () => { if(confirm(`Révoquer complètement le partage avec « ${e.name} » ?`)) revokeShare(e.uid); }
-              );
-              inList.appendChild(row);
-            });
-          }
+          entries.forEach(e => {
+            const row = _shareRowUnified(e);
+            unifiedList.appendChild(row);
+          });
 
         } catch(err) {
           console.error('_loadShareActiveList error', err);
-          if (outList) outList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Erreur de chargement.</div>';
-          if (inList)  inList.innerHTML  = '';
+          if (unifiedList) unifiedList.innerHTML = '<div style="font-size:12px;color:var(--text-muted);">Erreur de chargement.</div>';
         }
+      }
+
+      function _dot(active) {
+        const d = document.createElement('div');
+        d.title = active ? 'Accessible' : 'Suspendu';
+        d.style.cssText = `width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${active ? '#1A7A4A' : 'var(--text-muted)'};`;
+        return d;
+      }
+
+      function _shareRowUnified(e) {
+        // e = { uid, name, outActive: bool|null, inActive: bool|null }
+        const row = document.createElement('div');
+        row.style.cssText = `display:flex;align-items:center;gap:8px;padding:10px 12px;
+          background:var(--bg);border-radius:9px;border:1px solid var(--border);flex-wrap:wrap;`;
+
+        // Avatar
+        const av = document.createElement('div');
+        av.style.cssText = `width:28px;height:28px;border-radius:50%;background:#6B6459;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;flex-shrink:0;`;
+        av.textContent = e.name.trim().split(/\s+/).map(w=>w[0].toUpperCase()).slice(0,2).join('');
+
+        // Nom
+        const nm = document.createElement('span');
+        nm.textContent = e.name;
+        nm.style.cssText = 'font-size:13px;font-weight:600;color:var(--text-primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:60px;';
+
+        // Voyants
+        const dots = document.createElement('div');
+        dots.style.cssText = 'display:flex;align-items:center;gap:6px;flex-shrink:0;';
+
+        // Voyant "son planning est accessible" = inActive
+        const dotInWrap = document.createElement('div');
+        dotInWrap.style.cssText = 'display:flex;align-items:center;gap:3px;font-size:10px;color:var(--text-muted);';
+        if (e.inActive !== null) {
+          dotInWrap.appendChild(_dot(e.inActive));
+          const lbl = document.createElement('span');
+          lbl.textContent = 'Son planning';
+          dotInWrap.appendChild(lbl);
+        }
+
+        // Voyant "mon planning lui est accessible" = outActive
+        const dotOutWrap = document.createElement('div');
+        dotOutWrap.style.cssText = 'display:flex;align-items:center;gap:3px;font-size:10px;color:var(--text-muted);';
+        if (e.outActive !== null) {
+          dotOutWrap.appendChild(_dot(e.outActive));
+          const lbl = document.createElement('span');
+          lbl.textContent = 'Mon planning';
+          dotOutWrap.appendChild(lbl);
+        }
+
+        dots.appendChild(dotInWrap);
+        if (e.inActive !== null && e.outActive !== null) {
+          const sep = document.createElement('span');
+          sep.textContent = '·';
+          sep.style.cssText = 'color:var(--border);font-size:12px;';
+          dots.appendChild(sep);
+        }
+        dots.appendChild(dotOutWrap);
+
+        // Boutons actions
+        const btns = document.createElement('div');
+        btns.style.cssText = 'display:flex;gap:5px;flex-shrink:0;';
+
+        // Bouton Suspendre/Réactiver (uniquement si outbound existe)
+        if (e.outActive !== null) {
+          const btnSusp = document.createElement('button');
+          btnSusp.textContent = e.outActive ? 'Suspendre' : 'Réactiver';
+          btnSusp.title = e.outActive ? 'Suspendre le partage de mon planning vers cette personne' : 'Réactiver le partage de mon planning vers cette personne';
+          btnSusp.style.cssText = `background:none;border:1px solid var(--border);border-radius:6px;
+            padding:4px 9px;font-size:11px;color:var(--text-muted);cursor:pointer;white-space:nowrap;`;
+          btnSusp.onmouseover = () => { btnSusp.style.background = 'var(--accent-light)'; btnSusp.style.color = 'var(--accent)'; btnSusp.style.borderColor = 'var(--accent-mid)'; };
+          btnSusp.onmouseout  = () => { btnSusp.style.background = 'none'; btnSusp.style.color = 'var(--text-muted)'; btnSusp.style.borderColor = 'var(--border)'; };
+          btnSusp.onclick = e.outActive
+            ? () => suspendShareOutbound(e.uid)
+            : () => resumeShareOutbound(e.uid);
+          btns.appendChild(btnSusp);
+        }
+
+        // Bouton Révoquer (supprime les deux sens)
+        const btnRev = document.createElement('button');
+        btnRev.textContent = 'Révoquer';
+        btnRev.title = 'Supprimer tout partage réciproque avec cette personne (une nouvelle invitation sera nécessaire)';
+        btnRev.style.cssText = `background:none;border:1px solid #FECACA;border-radius:6px;
+          padding:4px 9px;font-size:11px;color:#C0392B;cursor:pointer;white-space:nowrap;`;
+        btnRev.onmouseover = () => { btnRev.style.background = '#FEF2F2'; };
+        btnRev.onmouseout  = () => { btnRev.style.background = 'none'; };
+        btnRev.onclick = () => {
+          if (confirm(`Révoquer tout partage avec « ${e.name} » ? Une nouvelle invitation par code sera nécessaire pour rétablir le partage.`))
+            revokeShare(e.uid);
+        };
+        btns.appendChild(btnRev);
+
+        row.appendChild(av);
+        row.appendChild(nm);
+        row.appendChild(dots);
+        row.appendChild(btns);
+        return row;
       }
 
       // ── Boutons dans la sidebar ───────────────────────────────────────
