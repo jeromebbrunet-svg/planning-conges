@@ -1768,20 +1768,16 @@
           <!-- Barre utilisateur(s) dans le header -->
           <div id="user-compare-bar" style="display:none;flex-direction:column;gap:5px;">
             <!-- Utilisateur principal -->
-            <div style="display:flex;flex-direction:column;gap:3px;">
-              <div style="display:flex;align-items:center;gap:8px;">
-                <span class="user-avatar" id="user-header-avatar" style="width:20px;height:20px;font-size:9px;background:#2F5FA8;flex-shrink:0;">?</span>
-                <span id="user-header-name" style="font-size:12px;font-weight:600;color:var(--text-primary);">—</span>
-              </div>
-              <span id="user-header-chips" style="display:inline-flex;gap:4px;flex-wrap:wrap;padding-left:28px;"></span>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <span class="user-avatar" id="user-header-avatar" style="width:20px;height:20px;font-size:9px;background:#2F5FA8;flex-shrink:0;">?</span>
+              <span id="user-header-name" style="font-size:12px;font-weight:600;color:var(--text-primary);flex-shrink:0;">—</span>
+              <span id="user-header-chips" style="display:inline-flex;gap:4px;flex-wrap:wrap;"></span>
             </div>
             <!-- Utilisateur comparé (masqué si aucun) -->
-            <div id="compare-header-badge" style="display:none;flex-direction:column;gap:3px;opacity:0.75;">
-              <div style="display:flex;align-items:center;gap:8px;">
-                <span class="user-avatar" id="compare-header-avatar" style="width:20px;height:20px;font-size:9px;background:#888;flex-shrink:0;">?</span>
-                <span id="compare-header-name" style="font-size:12px;font-weight:500;color:var(--text-primary);">—</span>
-              </div>
-              <span id="compare-header-chips" style="display:inline-flex;gap:4px;flex-wrap:wrap;padding-left:28px;"></span>
+            <div id="compare-header-badge" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;opacity:0.75;">
+              <span class="user-avatar" id="compare-header-avatar" style="width:20px;height:20px;font-size:9px;background:#888;flex-shrink:0;">?</span>
+              <span id="compare-header-name" style="font-size:12px;font-weight:500;color:var(--text-primary);flex-shrink:0;">—</span>
+              <span id="compare-header-chips" style="display:inline-flex;gap:4px;flex-wrap:wrap;"></span>
             </div>
           </div>
           <button id="mobile-toggle-btn" onclick="toggleMobileMode()" title="Mode smartphone">
@@ -3108,7 +3104,7 @@
         const mobBtn=document.getElementById('mob-swap-btn');
         btn.classList.toggle('active',swapModeActive);
         if(miniBtn){ miniBtn.style.background=swapModeActive?'var(--swap-active-bg)':''; miniBtn.style.color=swapModeActive?'var(--swap-active-color)':''; miniBtn.style.borderColor=swapModeActive?'var(--swap-active-border)':''; }
-        if(mobBtn){ mobBtn.classList.toggle('active',swapModeActive); }
+        if(mobBtn){ mobBtn.style.background=swapModeActive?'var(--swap-active-bg)':'var(--bg)'; mobBtn.style.color=swapModeActive?'var(--swap-active-color)':'var(--text-secondary)'; mobBtn.style.borderColor=swapModeActive?'var(--swap-active-border)':'var(--border)'; }
         document.body.classList.toggle('swap-mode',swapModeActive);
         document.getElementById('status-legend-label').textContent=swapModeActive?'Statut (clic gauche)':'Statut (clic droit)';
       }
@@ -4956,10 +4952,11 @@
         <!-- Outil / Inversion G/D -->
         <div class="mob-section">
           <div class="mob-section-label">Options de saisie</div>
-          <button class="swap-btn" id="mob-swap-btn" onclick="toggleSwapMode()" title="Inverse clic gauche et clic droit pour le statut" style="width:100%;">
-            <span style="font-size:14px;">⇄</span>
-            Inverser clics G/D
-          </button>
+          <button id="mob-swap-btn" onclick="toggleSwapMode()" title="Inverser clics G/D (statut)"
+            style="width:40px;height:40px;border-radius:9px;border:1px solid var(--border);
+                   background:var(--bg);font-size:18px;font-weight:700;cursor:pointer;
+                   display:flex;align-items:center;justify-content:center;
+                   color:var(--text-secondary);transition:all 0.2s;">⇄</button>
         </div>
 
         <!-- Année -->
