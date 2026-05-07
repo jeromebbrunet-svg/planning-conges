@@ -1768,16 +1768,20 @@
           <!-- Barre utilisateur(s) dans le header -->
           <div id="user-compare-bar" style="display:none;flex-direction:column;gap:5px;">
             <!-- Utilisateur principal -->
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-              <span class="user-avatar" id="user-header-avatar" style="width:20px;height:20px;font-size:9px;background:#2F5FA8;flex-shrink:0;">?</span>
-              <span id="user-header-name" style="font-size:12px;font-weight:600;color:var(--text-primary);">—</span>
-              <span id="user-header-chips" style="display:inline-flex;gap:4px;flex-wrap:wrap;"></span>
+            <div style="display:flex;flex-direction:column;gap:3px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span class="user-avatar" id="user-header-avatar" style="width:20px;height:20px;font-size:9px;background:#2F5FA8;flex-shrink:0;">?</span>
+                <span id="user-header-name" style="font-size:12px;font-weight:600;color:var(--text-primary);">—</span>
+              </div>
+              <span id="user-header-chips" style="display:inline-flex;gap:4px;flex-wrap:wrap;padding-left:28px;"></span>
             </div>
             <!-- Utilisateur comparé (masqué si aucun) -->
-            <div id="compare-header-badge" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;opacity:0.75;">
-              <span class="user-avatar" id="compare-header-avatar" style="width:20px;height:20px;font-size:9px;background:#888;flex-shrink:0;">?</span>
-              <span id="compare-header-name" style="font-size:12px;font-weight:500;color:var(--text-primary);">—</span>
-              <span id="compare-header-chips" style="display:inline-flex;gap:4px;flex-wrap:wrap;"></span>
+            <div id="compare-header-badge" style="display:none;flex-direction:column;gap:3px;opacity:0.75;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span class="user-avatar" id="compare-header-avatar" style="width:20px;height:20px;font-size:9px;background:#888;flex-shrink:0;">?</span>
+                <span id="compare-header-name" style="font-size:12px;font-weight:500;color:var(--text-primary);">—</span>
+              </div>
+              <span id="compare-header-chips" style="display:inline-flex;gap:4px;flex-wrap:wrap;padding-left:28px;"></span>
             </div>
           </div>
           <button id="mobile-toggle-btn" onclick="toggleMobileMode()" title="Mode smartphone">
@@ -3101,8 +3105,10 @@
         swapModeActive=!swapModeActive;
         const btn=document.getElementById('swap-btn');
         const miniBtn=document.getElementById('mini-swap-btn');
+        const mobBtn=document.getElementById('mob-swap-btn');
         btn.classList.toggle('active',swapModeActive);
         if(miniBtn){ miniBtn.style.background=swapModeActive?'var(--swap-active-bg)':''; miniBtn.style.color=swapModeActive?'var(--swap-active-color)':''; miniBtn.style.borderColor=swapModeActive?'var(--swap-active-border)':''; }
+        if(mobBtn){ mobBtn.classList.toggle('active',swapModeActive); }
         document.body.classList.toggle('swap-mode',swapModeActive);
         document.getElementById('status-legend-label').textContent=swapModeActive?'Statut (clic gauche)':'Statut (clic droit)';
       }
@@ -3968,28 +3974,32 @@
       }
 
       function refreshCompareSelect() {
-        const sel = document.getElementById('compare-select');
-        if (!sel) return;
-        sel.innerHTML = '<option value="">— Aucun —</option>';
+        const sel    = document.getElementById('compare-select');
+        const selMob = document.getElementById('mob-compare-select');
+        const sels   = [sel, selMob].filter(Boolean);
+        sels.forEach(s => s.innerHTML = '<option value="">— Aucun —</option>');
 
         // Utilisateurs locaux
         users.filter(u => u.id !== currentUserId).forEach(u => {
-          const opt = document.createElement('option');
-          opt.value = u.id;
-          opt.textContent = u.name;
-          sel.appendChild(opt);
+          sels.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = u.id;
+            opt.textContent = u.name;
+            s.appendChild(opt);
+          });
         });
 
         // Collègues partagés (jamais soi-même)
         for (const [uid, sd] of Object.entries(_sharedCache)) {
-          if (uid === _authUid) continue; // sécurité : exclure son propre uid
+          if (uid === _authUid) continue;
           if (sd.users && sd.users.length) {
-            // Si le collègue a plusieurs utilisateurs, on propose chacun
             sd.users.forEach((u, idx) => {
-              const opt = document.createElement('option');
-              opt.value = `shared:${uid}:${idx}`;
-              opt.textContent = `${u.name} ✦`;
-              sel.appendChild(opt);
+              sels.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = `shared:${uid}:${idx}`;
+                opt.textContent = `${u.name} ✦`;
+                s.appendChild(opt);
+              });
             });
           }
         }
@@ -3997,16 +4007,20 @@
         // Sync sur compareUserId
         const isLocal  = compareUserId && users.find(u => u.id === compareUserId && u.id !== currentUserId);
         const isShared = compareUserId && compareUserId.startsWith('shared:');
-        if (isLocal || isShared) {
-          sel.value = compareUserId;
-        } else {
-          compareUserId = null;
-          sel.value = '';
-        }
+        sels.forEach(s => {
+          if (isLocal || isShared) s.value = compareUserId;
+          else s.value = '';
+        });
+        if (!isLocal && !isShared) compareUserId = null;
       }
 
       function onCompareSelect(val) {
         compareUserId = val || null;
+        // Sync les deux sélects (sidebar bureau ↔ drawer mobile)
+        const s1 = document.getElementById('compare-select');
+        const s2 = document.getElementById('mob-compare-select');
+        if (s1 && s1.value !== (val || '')) s1.value = val || '';
+        if (s2 && s2.value !== (val || '')) s2.value = val || '';
         saveLocalPrefs();
         applyCompareOverlay();
         updateCompareHeaderBadge();
@@ -4926,6 +4940,26 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- Comparer avec -->
+        <div class="mob-section">
+          <div class="mob-section-label">Comparer avec</div>
+          <select id="mob-compare-select" onchange="onCompareSelect(this.value);document.getElementById('compare-select').value=this.value;"
+            style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;
+                   background:var(--bg);color:var(--text-primary);font-size:12.5px;
+                   font-family:'DM Sans',sans-serif;cursor:pointer;outline:none;">
+            <option value="">— Aucun —</option>
+          </select>
+        </div>
+
+        <!-- Outil / Inversion G/D -->
+        <div class="mob-section">
+          <div class="mob-section-label">Options de saisie</div>
+          <button class="swap-btn" id="mob-swap-btn" onclick="toggleSwapMode()" title="Inverse clic gauche et clic droit pour le statut" style="width:100%;">
+            <span style="font-size:14px;">⇄</span>
+            Inverser clics G/D
+          </button>
         </div>
 
         <!-- Année -->
