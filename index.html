@@ -1766,18 +1766,18 @@
           </h1>
           <span class="year-badge" id="year-badge-main">Année 2025</span>
           <!-- Barre utilisateur(s) dans le header -->
-          <div id="user-compare-bar" style="display:none;flex-direction:column;gap:5px;">
+          <div id="user-compare-bar" style="display:none;flex-direction:column;gap:6px;">
             <!-- Utilisateur principal -->
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               <span class="user-avatar" id="user-header-avatar" style="width:20px;height:20px;font-size:9px;background:#2F5FA8;flex-shrink:0;">?</span>
               <span id="user-header-name" style="font-size:12px;font-weight:600;color:var(--text-primary);flex-shrink:0;">—</span>
-              <span id="user-header-chips" style="display:inline-flex;gap:4px;flex-wrap:wrap;"></span>
+              <div id="user-header-chips" style="display:inline-flex;gap:5px;flex-wrap:wrap;"></div>
             </div>
             <!-- Utilisateur comparé (masqué si aucun) -->
             <div id="compare-header-badge" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;opacity:0.75;">
               <span class="user-avatar" id="compare-header-avatar" style="width:20px;height:20px;font-size:9px;background:#888;flex-shrink:0;">?</span>
               <span id="compare-header-name" style="font-size:12px;font-weight:500;color:var(--text-primary);flex-shrink:0;">—</span>
-              <span id="compare-header-chips" style="display:inline-flex;gap:4px;flex-wrap:wrap;"></span>
+              <div id="compare-header-chips" style="display:inline-flex;gap:5px;flex-wrap:wrap;"></div>
             </div>
           </div>
           <button id="mobile-toggle-btn" onclick="toggleMobileMode()" title="Mode smartphone">
@@ -1813,6 +1813,11 @@
         <!-- Mobile top bar (navigation mois) -->
         <div id="mobile-top-bar">
           <span id="mobile-month-label" style="flex:1;text-align:center;">Janvier 2025</span>
+          <button id="mob-swap-btn" onclick="toggleSwapMode()" title="Inverser clics G/D (statut)"
+            style="width:34px;height:34px;border-radius:50%;border:1px solid var(--border);
+                   background:var(--bg);font-size:15px;font-weight:700;cursor:pointer;
+                   display:flex;align-items:center;justify-content:center;flex-shrink:0;
+                   color:var(--text-secondary);transition:all 0.2s;">⇄</button>
           <button onclick="toggleTheme()" style="width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--bg);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;" id="mobile-theme-btn-top" title="Thème">🌙</button>
         </div>
 
@@ -2341,12 +2346,10 @@
 
       function _soldeChip(label, val, color) {
         const fmt = v => Number.isInteger(v) ? String(v) : v.toFixed(1);
-        return `<span style="
-          display:inline-flex;align-items:center;gap:3px;
-          background:var(--surface);border:1px solid var(--border);
-          border-radius:5px;padding:1px 6px;font-size:10px;font-weight:600;
-          color:${color};white-space:nowrap;line-height:1.6;
-        ">${label} <span style="font-weight:700;">${fmt(val)}</span></span>`;
+        return `<div class="counter" style="padding:3px 8px;min-width:44px;text-align:center;">
+          <div class="counter-value" style="font-size:13px;color:${color};">${fmt(val)}</div>
+          <div class="counter-label" style="font-size:9px;">${label}</div>
+        </div>`;
       }
 
       function _refreshUserBars() {
@@ -4947,16 +4950,6 @@
                    font-family:'DM Sans',sans-serif;cursor:pointer;outline:none;">
             <option value="">— Aucun —</option>
           </select>
-        </div>
-
-        <!-- Outil / Inversion G/D -->
-        <div class="mob-section">
-          <div class="mob-section-label">Options de saisie</div>
-          <button id="mob-swap-btn" onclick="toggleSwapMode()" title="Inverser clics G/D (statut)"
-            style="width:40px;height:40px;border-radius:9px;border:1px solid var(--border);
-                   background:var(--bg);font-size:18px;font-weight:700;cursor:pointer;
-                   display:flex;align-items:center;justify-content:center;
-                   color:var(--text-secondary);transition:all 0.2s;">⇄</button>
         </div>
 
         <!-- Année -->
